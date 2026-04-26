@@ -8,7 +8,7 @@
 
 set -euo pipefail
 
-REMOTE_URL="https://github.com/sensingschool/sensingschool.github.io.git"
+REMOTE_URL="https://github.com/sensingstudio/sensingstudio.github.io.git"
 BRANCH="main"
 MSG="${1:-Update site $(date +%Y-%m-%dT%H:%M:%S)}"
 
