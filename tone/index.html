@@ -1,0 +1,507 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tone &amp; Spectrum · Sensing School</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --red: #bc122a;
+        --black: #111;
+        --grey-line: #dee2e6;
+        --grey-text: #5b6068;
+        --bg: #fafafa;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        font-family: 'Roboto', Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--black);
+        -webkit-font-smoothing: antialiased;
+      }
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--grey-line);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header a.brand {
+        color: var(--black);
+        text-decoration: none;
+        font-weight: 900;
+        font-size: 18px;
+        letter-spacing: -0.5px;
+      }
+      header a.brand .red { color: var(--red); }
+      header .crumb {
+        color: var(--grey-text);
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px;
+      }
+      h1 {
+        font-weight: 900;
+        font-size: clamp(28px, 4vw, 40px);
+        margin: 0 0 8px;
+        letter-spacing: -0.5px;
+      }
+      p.lead {
+        color: var(--grey-text);
+        margin: 0 0 32px;
+        max-width: 60ch;
+        line-height: 1.5;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid var(--grey-line);
+        border-radius: 10px;
+        padding: 24px;
+        margin-bottom: 20px;
+      }
+      .panel h2 {
+        margin: 0 0 16px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .row:last-child { margin-bottom: 0; }
+      label {
+        font-size: 12px;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+        font-weight: 500;
+        min-width: 70px;
+      }
+      .freq-display {
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        font-size: 28px;
+        min-width: 130px;
+        letter-spacing: -0.5px;
+      }
+      input[type="range"] {
+        flex: 1 1 200px;
+        min-width: 200px;
+      }
+      button {
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        padding: 10px 22px;
+        border: 1px solid var(--black);
+        background: var(--black);
+        color: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: opacity 0.15s, background 0.15s;
+      }
+      button:hover:not(:disabled) { opacity: 0.85; }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+      button.secondary {
+        background: #fff;
+        color: var(--black);
+      }
+      button.danger {
+        background: var(--red);
+        border-color: var(--red);
+      }
+      .canvas-wrap {
+        position: relative;
+        background: #0c0c0e;
+        border-radius: 6px;
+        overflow: hidden;
+        aspect-ratio: 16 / 6;
+      }
+      canvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+      .canvas-wrap .placeholder {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: rgba(255,255,255,0.5);
+        font-size: 13px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        pointer-events: none;
+      }
+      .status {
+        font-size: 13px;
+        color: var(--grey-text);
+        margin-top: 12px;
+      }
+      .status.error { color: var(--red); }
+      .note {
+        font-size: 12px;
+        color: var(--grey-text);
+        margin-top: 16px;
+        line-height: 1.5;
+      }
+      select {
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 7px 10px;
+        border: 1px solid var(--grey-line);
+        background: #fff;
+        color: var(--black);
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .kbd {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding: 2px 6px;
+        margin-left: 6px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        vertical-align: 1px;
+      }
+      button.secondary .kbd,
+      button:not(.danger):not([class*="danger"]) .kbd {
+        background: rgba(0, 0, 0, 0.06);
+        border-color: rgba(0, 0, 0, 0.15);
+        color: var(--grey-text);
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="../"><span>SENSING</span> <span class="red">SCHOOL</span></a>
+      <span class="crumb">Tone &amp; Spectrum</span>
+    </header>
+    <main>
+      <h1>Tone &amp; Spectrum</h1>
+      <p class="lead">Generate a sine tone through your speakers and watch your microphone hear it back. The spectrum below shows the live FFT of whatever your mic is picking up — the tone, room reflections, and ambient noise.</p>
+
+      <section class="panel">
+        <h2>Tone Generator</h2>
+        <div class="row">
+          <span class="freq-display" id="freqDisplay">440 Hz</span>
+          <input type="range" id="freqSlider" min="0" max="1" step="0.0001" value="0.5" aria-label="Frequency" />
+        </div>
+        <div class="row">
+          <label for="gainSlider">Volume</label>
+          <input type="range" id="gainSlider" min="0" max="0.5" step="0.001" value="0.08" />
+          <button id="toneBtn">Play <span class="kbd">Space</span></button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Microphone Spectrum</h2>
+        <div class="canvas-wrap">
+          <canvas id="spectrum"></canvas>
+          <div class="placeholder" id="placeholder">Microphone is off</div>
+        </div>
+        <div class="row" style="margin-top: 16px;">
+          <label for="fftSize">FFT size</label>
+          <select id="fftSize">
+            <option value="1024">1024</option>
+            <option value="2048">2048</option>
+            <option value="4096" selected>4096</option>
+            <option value="8192">8192</option>
+            <option value="16384">16384</option>
+            <option value="32768">32768</option>
+          </select>
+          <label for="zoom" style="margin-left: 12px;">View</label>
+          <select id="zoom">
+            <option value="full" selected>Full range (20 Hz – 20 kHz)</option>
+            <option value="0.5">Zoom: ±0.5 oct around tone</option>
+            <option value="1">Zoom: ±1 oct around tone</option>
+            <option value="2">Zoom: ±2 oct around tone</option>
+            <option value="3">Zoom: ±3 oct around tone</option>
+          </select>
+          <span class="status" id="resolution">&#8776; 11.72 Hz/bin</span>
+        </div>
+        <div class="row" style="margin-top: 12px;">
+          <button id="micBtn" class="secondary">Enable microphone</button>
+          <span class="status" id="status">Mic will enable on first interaction.</span>
+        </div>
+        <p class="note">Tip: use headphones to avoid feedback. With speakers, you'll see (and hear) the tone loop back into the mic — that's part of the demo.</p>
+      </section>
+    </main>
+
+    <script>
+      const FMIN = 20, FMAX = 20000;
+      const sliderToFreq = t => FMIN * Math.pow(FMAX / FMIN, t);
+      const freqToSlider = f => Math.log(f / FMIN) / Math.log(FMAX / FMIN);
+
+      const freqSlider  = document.getElementById('freqSlider');
+      const freqDisplay = document.getElementById('freqDisplay');
+      const gainSlider  = document.getElementById('gainSlider');
+      const toneBtn     = document.getElementById('toneBtn');
+      const micBtn      = document.getElementById('micBtn');
+      const statusEl    = document.getElementById('status');
+      const placeholder = document.getElementById('placeholder');
+      const fftSel      = document.getElementById('fftSize');
+      const zoomSel     = document.getElementById('zoom');
+      const resEl       = document.getElementById('resolution');
+      const canvas      = document.getElementById('spectrum');
+      const ctx         = canvas.getContext('2d');
+
+      freqSlider.value = freqToSlider(440);
+
+      let audioCtx = null;
+      let osc = null;
+      let toneGain = null;
+      let analyser = null;
+      let micStream = null;
+      let micSource = null;
+      let drawing = false;
+      let dataBuf = null;
+
+      const fmtFreq = f => f >= 1000 ? (f / 1000).toFixed(2) + ' kHz' : f.toFixed(0) + ' Hz';
+      const currentFreq = () => sliderToFreq(parseFloat(freqSlider.value));
+      const updateFreqDisplay = () => { freqDisplay.textContent = fmtFreq(currentFreq()); };
+
+      freqSlider.addEventListener('input', () => {
+        updateFreqDisplay();
+        if (osc) osc.frequency.setTargetAtTime(currentFreq(), audioCtx.currentTime, 0.01);
+      });
+
+      gainSlider.addEventListener('input', () => {
+        if (toneGain) toneGain.gain.setTargetAtTime(parseFloat(gainSlider.value), audioCtx.currentTime, 0.01);
+      });
+
+      function ensureContext() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+      }
+
+      function startTone() {
+        ensureContext();
+        osc = audioCtx.createOscillator();
+        osc.type = 'sine';
+        osc.frequency.value = currentFreq();
+        toneGain = audioCtx.createGain();
+        toneGain.gain.value = parseFloat(gainSlider.value);
+        osc.connect(toneGain).connect(audioCtx.destination);
+        osc.start();
+        toneBtn.textContent = 'Stop';
+        toneBtn.classList.add('danger');
+      }
+
+      function stopTone() {
+        if (osc) {
+          try { osc.stop(); } catch (e) {}
+          osc.disconnect();
+          toneGain.disconnect();
+          osc = null;
+          toneGain = null;
+        }
+        toneBtn.textContent = 'Play';
+        toneBtn.classList.remove('danger');
+      }
+
+      function toggleTone() { if (osc) stopTone(); else startTone(); }
+      toneBtn.addEventListener('click', toggleTone);
+
+      document.addEventListener('keydown', (e) => {
+        if (e.code !== 'Space' || e.repeat) return;
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' && t.type === 'text' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        e.preventDefault();
+        toggleTone();
+      });
+
+      const onFirstGesture = () => {
+        document.removeEventListener('pointerdown', onFirstGesture);
+        document.removeEventListener('keydown', onFirstGesture);
+        if (!analyser) enableMic();
+      };
+      document.addEventListener('pointerdown', onFirstGesture);
+      document.addEventListener('keydown', onFirstGesture);
+
+      async function enableMic() {
+        try {
+          ensureContext();
+          statusEl.textContent = 'Requesting permission...';
+          statusEl.classList.remove('error');
+          micStream = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+          });
+          micSource = audioCtx.createMediaStreamSource(micStream);
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = parseInt(fftSel.value, 10);
+          analyser.smoothingTimeConstant = 0.5;
+          analyser.minDecibels = -130;
+          analyser.maxDecibels = -10;
+          micSource.connect(analyser);
+          dataBuf = new Float32Array(analyser.frequencyBinCount);
+          updateResolution();
+          statusEl.textContent = 'Mic on · ' + Math.round(audioCtx.sampleRate) + ' Hz sample rate.';
+          micBtn.textContent = 'Disable microphone';
+          micBtn.classList.remove('secondary');
+          placeholder.style.display = 'none';
+          if (!drawing) { drawing = true; requestAnimationFrame(draw); }
+        } catch (err) {
+          statusEl.textContent = 'Could not access microphone: ' + err.message;
+          statusEl.classList.add('error');
+        }
+      }
+
+      function disableMic() {
+        drawing = false;
+        if (micSource) micSource.disconnect();
+        if (micStream) micStream.getTracks().forEach(t => t.stop());
+        micSource = null; micStream = null; analyser = null; dataBuf = null;
+        statusEl.textContent = 'Mic is off.';
+        micBtn.textContent = 'Enable microphone';
+        micBtn.classList.add('secondary');
+        placeholder.style.display = 'grid';
+        ctx.fillStyle = '#0c0c0e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      micBtn.addEventListener('click', () => { if (analyser) disableMic(); else enableMic(); });
+
+      function updateResolution() {
+        const size = parseInt(fftSel.value, 10);
+        const sr = audioCtx ? audioCtx.sampleRate : 48000;
+        resEl.textContent = '≈ ' + (sr / size).toFixed(2) + ' Hz/bin · ' + (size / 2) + ' bins';
+      }
+
+      fftSel.addEventListener('change', () => {
+        const size = parseInt(fftSel.value, 10);
+        if (analyser) {
+          analyser.fftSize = size;
+          dataBuf = new Float32Array(analyser.frequencyBinCount);
+        }
+        updateResolution();
+      });
+
+      function draw() {
+        if (!drawing || !analyser) return;
+        const rect = canvas.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        const w = Math.round(rect.width * dpr);
+        const h = Math.round(rect.height * dpr);
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w;
+          canvas.height = h;
+        }
+
+        analyser.getFloatFrequencyData(dataBuf);
+        const bins = dataBuf.length;
+        const fNyq = audioCtx.sampleRate / 2;
+        let fLo = FMIN;
+        let fHi = Math.min(FMAX, fNyq);
+        const zoomVal = zoomSel.value;
+        if (zoomVal !== 'full') {
+          const oct = parseFloat(zoomVal);
+          const f = currentFreq();
+          fLo = Math.max(FMIN, f / Math.pow(2, oct));
+          fHi = Math.min(fNyq, f * Math.pow(2, oct));
+        }
+        const xToFreq = x => fLo * Math.pow(fHi / fLo, x);
+        const freqToX = f => Math.log(f / fLo) / Math.log(fHi / fLo);
+        const dbMin = -130, dbMax = -10;
+        const yFromDb = db => h - Math.max(0, Math.min(1, (db - dbMin) / (dbMax - dbMin))) * h;
+
+        ctx.fillStyle = '#0c0c0e';
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+        ctx.lineWidth = 1 * dpr;
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.font = (11 * dpr) + 'px Roboto, sans-serif';
+        const span = Math.log10(fHi / fLo);
+        let mults;
+        if      (span >= 1)   mults = [1, 2, 5];
+        else if (span >= 0.4) mults = [1, 1.5, 2, 3, 5, 7];
+        else                  mults = [1, 1.2, 1.5, 1.8, 2, 2.5, 3, 4, 5, 6, 7, 8, 9];
+        const dMin = Math.floor(Math.log10(fLo));
+        const dMax = Math.ceil(Math.log10(fHi));
+        for (let d = dMin; d <= dMax; d++) {
+          for (const m of mults) {
+            const f = m * Math.pow(10, d);
+            if (f < fLo || f > fHi) continue;
+            const x = freqToX(f) * w;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+            ctx.stroke();
+            const lbl = f >= 1000 ? (+(f / 1000).toFixed(1)) + 'k' : Math.round(f) + '';
+            ctx.fillText(lbl, x + 3 * dpr, h - 4 * dpr);
+          }
+        }
+
+        if (osc) {
+          const f = currentFreq();
+          if (f >= fLo && f <= fHi) {
+            const x = freqToX(f) * w;
+            ctx.strokeStyle = 'rgba(188, 18, 42, 0.6)';
+            ctx.lineWidth = 1.5 * dpr;
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, h);
+            ctx.stroke();
+          }
+        }
+
+        const ys = new Float32Array(w);
+        for (let px = 0; px < w; px++) {
+          const fL = xToFreq(px / w);
+          const fR = xToFreq((px + 1) / w);
+          const binL = Math.max(0, Math.floor(fL / fNyq * bins));
+          const binR = Math.min(bins, Math.max(binL + 1, Math.ceil(fR / fNyq * bins)));
+          let peak = -Infinity;
+          for (let b = binL; b < binR; b++) if (dataBuf[b] > peak) peak = dataBuf[b];
+          if (!isFinite(peak)) peak = dbMin;
+          ys[px] = yFromDb(peak);
+        }
+
+        ctx.fillStyle = 'rgba(188, 18, 42, 0.25)';
+        ctx.beginPath();
+        ctx.moveTo(0, h);
+        for (let px = 0; px < w; px++) ctx.lineTo(px, ys[px]);
+        ctx.lineTo(w - 1, h);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = '#bc122a';
+        ctx.lineWidth = 1.25 * dpr;
+        ctx.beginPath();
+        ctx.moveTo(0, ys[0]);
+        for (let px = 1; px < w; px++) ctx.lineTo(px, ys[px]);
+        ctx.stroke();
+
+        requestAnimationFrame(draw);
+      }
+
+      updateFreqDisplay();
+      updateResolution();
+      ctx.fillStyle = '#0c0c0e';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    </script>
+  </body>
+</html>
