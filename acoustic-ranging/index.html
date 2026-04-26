@@ -318,7 +318,7 @@
       <!-- LAPTOP ROLE -->
       <div class="laptop-only">
         <h1>Acoustic Ranging</h1>
-        <p class="lead host-only">Pair a phone, then run a synchronized chirp exchange. Both devices record their microphones for 6 s. The laptop chirps at <strong>t&nbsp;=&nbsp;2 s</strong>, the phone chirps at <strong>t&nbsp;=&nbsp;4 s</strong>. Each chirp is a 200 ms 1&rarr;4 kHz linear sweep transmitted at full amplitude &mdash; <strong>set both devices to maximum volume</strong>. The phone uploads its recording over WebRTC and a matched-filter cross-correlation estimates the laptop&ndash;phone distance.</p>
+        <p class="lead host-only">Pair a phone, then run a synchronized chirp exchange. Both devices record their microphones for 6 s. The laptop chirps at <strong>t&nbsp;=&nbsp;2 s</strong>, the phone chirps at <strong>t&nbsp;=&nbsp;4 s</strong>. Each chirp is a 200 ms 1&rarr;4 kHz linear sweep transmitted at full amplitude &mdash; <strong>set both devices to maximum volume</strong>. The phone uploads its recording over WebRTC and a matched-filter cross-correlation estimates the laptop&ndash;phone distance. After the BeepBeep ranging method of <a href="https://doi.org/10.1145/1322263.1322265" target="_blank" rel="noopener">Peng et&nbsp;al., SenSys 2007</a>.</p>
         <p class="lead join-only">Enter the 4-digit code shown on the host laptop to use this phone as the second microphone.</p>
 
         <section class="panel host-only">
@@ -400,7 +400,7 @@
       <!-- PHONE ROLE -->
       <div class="phone-only">
         <h1>Acoustic Ranging · Phone</h1>
-        <p class="lead">This phone is the second microphone and a chirp source. The laptop drives the experiment; this page records its mic, plays a chirp on cue, and uploads the recording.</p>
+        <p class="lead">This phone is the second microphone and a chirp source. Either device can hit Run to start the 6&nbsp;s exchange. After the BeepBeep ranging method of <a href="https://doi.org/10.1145/1322263.1322265" target="_blank" rel="noopener">Peng et&nbsp;al., SenSys 2007</a>.</p>
 
         <section class="panel">
           <h2>Status</h2>
@@ -409,6 +409,38 @@
             <button id="phoneStart" class="big">Start</button>
           </div>
           <p class="note">Keep this page open and the screen on. Place the phone where you want to range from.</p>
+        </section>
+
+        <section class="panel" id="phoneRunPanel" hidden>
+          <h2>Run experiment</h2>
+          <div class="row">
+            <button id="phoneRunBtn" class="big">Run</button>
+            <span class="status" id="phoneRunStatus">Tap Run to start a 6&nbsp;s exchange.</span>
+          </div>
+          <p class="note">Both devices record while the laptop chirps at <strong>t&nbsp;=&nbsp;2&nbsp;s</strong> and the phone chirps at <strong>t&nbsp;=&nbsp;4&nbsp;s</strong>. Set both devices to maximum volume.</p>
+        </section>
+
+        <section class="panel" id="phoneResultPanel" hidden>
+          <h2>Result</h2>
+          <div class="result-grid">
+            <div class="result-cell">
+              <span class="result-label">d&#8321; &middot; laptop recording</span>
+              <span class="result-value" id="phoneResultD1">&mdash;</span>
+            </div>
+            <div class="result-cell">
+              <span class="result-label">d&#8322; &middot; phone recording</span>
+              <span class="result-value" id="phoneResultD2">&mdash;</span>
+            </div>
+            <div class="result-cell">
+              <span class="result-label">|d&#8321; &minus; d&#8322;|</span>
+              <span class="result-value" id="phoneResultDelta">&mdash;</span>
+            </div>
+            <div class="result-cell highlight">
+              <span class="result-label">Distance</span>
+              <span class="result-value big" id="phoneResultDistance">&mdash;</span>
+            </div>
+          </div>
+          <p class="note">D = (c&nbsp;/&nbsp;2)&nbsp;&middot;&nbsp;|d&#8321;&nbsp;&minus;&nbsp;d&#8322;|, c&nbsp;=&nbsp;343&nbsp;m/s.</p>
         </section>
 
         <section class="panel" id="reconnectPanel" hidden>
@@ -817,6 +849,14 @@
 
         function handlePhoneMessage(msg) {
           if (!msg || !msg.type) return;
+          if (msg.type === 'request-run') {
+            if (runBtn.disabled) {
+              try { dataConn && dataConn.open && dataConn.send({ type: 'run-rejected', reason: 'Laptop is busy with another run.' }); } catch (_) {}
+              return;
+            }
+            runExperiment();
+            return;
+          }
           if (msg.type === 'rec-start') {
             phoneIncoming = {
               sampleRate: msg.sampleRate,
@@ -903,6 +943,12 @@
 
           runStatus.textContent = 'Done. D = ' + D.toFixed(2) + ' m  (|d₁−d₂| = ' + (Math.abs(d1 - d2) * 1000).toFixed(2) + ' ms).';
           runBtn.disabled = false;
+
+          if (dataConn && dataConn.open) {
+            try {
+              dataConn.send({ type: 'result', d1, d2, delta: Math.abs(d1 - d2), distance: D });
+            } catch (_) {}
+          }
         }
 
         function renderLaptopRec() {
@@ -1019,11 +1065,19 @@
 
       /* ============ PHONE ============ */
       function initPhone() {
-        const phoneStatus    = document.getElementById('phoneStatus');
-        const phoneStart     = document.getElementById('phoneStart');
-        const reconnectPanel = document.getElementById('reconnectPanel');
-        const reconnectForm  = document.getElementById('reconnectForm');
-        const reconnectCode  = document.getElementById('reconnectCode');
+        const phoneStatus     = document.getElementById('phoneStatus');
+        const phoneStart      = document.getElementById('phoneStart');
+        const phoneRunPanel   = document.getElementById('phoneRunPanel');
+        const phoneRunBtn     = document.getElementById('phoneRunBtn');
+        const phoneRunStatus  = document.getElementById('phoneRunStatus');
+        const phoneResultPanel = document.getElementById('phoneResultPanel');
+        const phoneResultD1   = document.getElementById('phoneResultD1');
+        const phoneResultD2   = document.getElementById('phoneResultD2');
+        const phoneResultDelta = document.getElementById('phoneResultDelta');
+        const phoneResultDistance = document.getElementById('phoneResultDistance');
+        const reconnectPanel  = document.getElementById('reconnectPanel');
+        const reconnectForm   = document.getElementById('reconnectForm');
+        const reconnectCode   = document.getElementById('reconnectCode');
 
         function showReconnect() {
           if (!reconnectPanel) return;
@@ -1055,6 +1109,8 @@
             phoneStatus.textContent = 'Not ready — microphone not initialized.';
             return;
           }
+          phoneRunBtn.disabled = true;
+          phoneRunStatus.textContent = 'Recording…';
           phoneStatus.textContent = 'Recording…';
           phoneStatus.classList.remove('error');
           if (audioCtx.state === 'suspended') await audioCtx.resume();
@@ -1068,8 +1124,29 @@
 
           micRecorder.start(cmd.recDuration || REC_DURATION, (samples) => {
             phoneStatus.textContent = 'Uploading recording…';
+            phoneRunStatus.textContent = 'Uploading recording…';
             sendRecording(samples, audioCtx.sampleRate);
           });
+        }
+
+        function applyResult(r) {
+          phoneResultPanel.hidden = false;
+          phoneResultD1.textContent       = (r.d1 * 1000).toFixed(2) + ' ms';
+          phoneResultD2.textContent       = (r.d2 * 1000).toFixed(2) + ' ms';
+          phoneResultDelta.textContent    = (r.delta * 1000).toFixed(2) + ' ms';
+          phoneResultDistance.textContent = r.distance.toFixed(2) + ' m';
+          phoneRunStatus.textContent = 'D = ' + r.distance.toFixed(2) + ' m. Tap Run for another.';
+          phoneRunBtn.disabled = false;
+        }
+
+        function requestRun() {
+          if (!conn || !conn.open) {
+            phoneRunStatus.textContent = 'Not connected.';
+            return;
+          }
+          phoneRunBtn.disabled = true;
+          phoneRunStatus.textContent = 'Requesting run from laptop…';
+          conn.send({ type: 'request-run' });
         }
 
         function sendRecording(samples, sampleRate) {
@@ -1088,8 +1165,9 @@
           const sendNext = () => {
             if (off >= total) {
               conn.send({ type: 'rec-end' });
-              phoneStatus.textContent = 'Upload complete. Ready for next run.';
+              phoneStatus.textContent = 'Upload complete. Waiting for result…';
               phoneStatus.classList.add('ok');
+              phoneRunStatus.textContent = 'Waiting for result from laptop…';
               return;
             }
             const end = Math.min(off + CHUNK_SAMPLES, total);
@@ -1122,11 +1200,20 @@
             peer.on('open', () => {
               conn = peer.connect(hostId, { reliable: true });
               conn.on('open', () => {
-                phoneStatus.textContent = 'Connected. Waiting for laptop to start…';
+                phoneStatus.textContent = 'Connected.';
                 phoneStatus.classList.add('ok');
+                phoneRunPanel.hidden = false;
+                phoneRunBtn.disabled = false;
+                phoneRunStatus.textContent = 'Tap Run, or wait for the laptop to start.';
               });
               conn.on('data', (msg) => {
-                if (msg && msg.type === 'run') handleRun(msg);
+                if (!msg || !msg.type) return;
+                if (msg.type === 'run') handleRun(msg);
+                else if (msg.type === 'result') applyResult(msg);
+                else if (msg.type === 'run-rejected') {
+                  phoneRunStatus.textContent = msg.reason || 'Laptop is not ready.';
+                  phoneRunBtn.disabled = false;
+                }
               });
               conn.on('close', () => {
                 phoneStatus.textContent = 'Disconnected.';
@@ -1160,6 +1247,8 @@
             showReconnect();
           }
         });
+
+        phoneRunBtn.addEventListener('click', requestRun);
       }
     </script>
   </body>

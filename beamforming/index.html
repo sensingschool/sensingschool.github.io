@@ -1054,61 +1054,94 @@
       }
 
       // ----------------------------------------------------------
-      // Source list UI
+      // Source list UI. Rows are reused across renders so dragging
+      // a source in the scene doesn't thrash the DOM.
       // ----------------------------------------------------------
       const sourceListEl = document.getElementById('sourceList');
-      function rebuildSourceList() {
-        sourceListEl.innerHTML = '';
-        state.sources.forEach((src, i) => {
-          const row = document.createElement('div');
-          row.className = 'source-row';
-          const dot = document.createElement('div');
-          dot.className = 'source-dot';
-          dot.style.background = SOURCE_COLORS[i % SOURCE_COLORS.length];
-          row.appendChild(dot);
+      const sourceRows = [];
+      function makeSourceRow(i) {
+        const row = document.createElement('div');
+        row.className = 'source-row';
+        const dot = document.createElement('div');
+        dot.className = 'source-dot';
+        row.appendChild(dot);
 
-          const angWrap = document.createElement('div');
-          angWrap.innerHTML =
-            '<span class="label">θ <span class="val">' + src.theta.toFixed(1) + '°</span></span>';
-          const angSlider = document.createElement('input');
-          angSlider.type = 'range';
-          angSlider.min = -89; angSlider.max = 89; angSlider.step = 0.5;
-          angSlider.value = src.theta;
-          angSlider.addEventListener('input', () => {
-            src.theta = parseFloat(angSlider.value);
-            angWrap.querySelector('.val').textContent = src.theta.toFixed(1) + '°';
-            requestRender();
-          });
-          angWrap.appendChild(angSlider);
-          row.appendChild(angWrap);
-
-          const powWrap = document.createElement('div');
-          powWrap.innerHTML =
-            '<span class="label">power <span class="val">' + src.power.toFixed(2) + '×</span></span>';
-          const powSlider = document.createElement('input');
-          powSlider.type = 'range';
-          powSlider.min = 0.01; powSlider.max = 4; powSlider.step = 0.01;
-          powSlider.value = src.power;
-          powSlider.addEventListener('input', () => {
-            src.power = parseFloat(powSlider.value);
-            powWrap.querySelector('.val').textContent = src.power.toFixed(2) + '×';
-            requestRender();
-          });
-          powWrap.appendChild(powSlider);
-          row.appendChild(powWrap);
-
-          const rm = document.createElement('button');
-          rm.className = 'ghost tiny';
-          rm.textContent = 'remove';
-          rm.disabled = state.sources.length <= 1;
-          rm.addEventListener('click', () => {
-            state.sources.splice(i, 1);
-            rebuildSourceList();
-            requestRender();
-          });
-          row.appendChild(rm);
-          sourceListEl.appendChild(row);
+        const angWrap = document.createElement('div');
+        const angLabel = document.createElement('span');
+        angLabel.className = 'label';
+        const angVal = document.createElement('span');
+        angVal.className = 'val';
+        angLabel.textContent = 'θ ';
+        angLabel.appendChild(angVal);
+        angWrap.appendChild(angLabel);
+        const angSlider = document.createElement('input');
+        angSlider.type = 'range';
+        angSlider.min = -89; angSlider.max = 89; angSlider.step = 0.5;
+        angSlider.addEventListener('input', () => {
+          state.sources[row._idx].theta = parseFloat(angSlider.value);
+          angVal.textContent = parseFloat(angSlider.value).toFixed(1) + '°';
+          requestRender();
         });
+        angWrap.appendChild(angSlider);
+        row.appendChild(angWrap);
+
+        const powWrap = document.createElement('div');
+        const powLabel = document.createElement('span');
+        powLabel.className = 'label';
+        const powVal = document.createElement('span');
+        powVal.className = 'val';
+        powLabel.textContent = 'power ';
+        powLabel.appendChild(powVal);
+        powWrap.appendChild(powLabel);
+        const powSlider = document.createElement('input');
+        powSlider.type = 'range';
+        powSlider.min = 0.01; powSlider.max = 4; powSlider.step = 0.01;
+        powSlider.addEventListener('input', () => {
+          state.sources[row._idx].power = parseFloat(powSlider.value);
+          powVal.textContent = parseFloat(powSlider.value).toFixed(2) + '×';
+          requestRender();
+        });
+        powWrap.appendChild(powSlider);
+        row.appendChild(powWrap);
+
+        const rm = document.createElement('button');
+        rm.className = 'ghost tiny';
+        rm.textContent = 'remove';
+        rm.addEventListener('click', () => {
+          state.sources.splice(row._idx, 1);
+          rebuildSourceList();
+          requestRender();
+        });
+        row.appendChild(rm);
+
+        return { row, dot, angSlider, angVal, powSlider, powVal, rm };
+      }
+      function rebuildSourceList() {
+        // Reuse existing row nodes; create or remove as needed.
+        while (sourceRows.length < state.sources.length) {
+          const r = makeSourceRow(sourceRows.length);
+          sourceListEl.appendChild(r.row);
+          sourceRows.push(r);
+        }
+        while (sourceRows.length > state.sources.length) {
+          const r = sourceRows.pop();
+          r.row.remove();
+        }
+        syncSourceList();
+      }
+      function syncSourceList() {
+        for (let i = 0; i < state.sources.length; i++) {
+          const src = state.sources[i];
+          const r = sourceRows[i];
+          r.row._idx = i;
+          r.dot.style.background = SOURCE_COLORS[i % SOURCE_COLORS.length];
+          // Don't blow away an active drag on the slider thumb itself.
+          if (document.activeElement !== r.angSlider) r.angSlider.value = src.theta;
+          if (document.activeElement !== r.powSlider) r.powSlider.value = src.power;
+          r.angVal.textContent = src.theta.toFixed(1) + '°';
+          r.powVal.textContent = src.power.toFixed(2) + '×';
+          r.rm.disabled = state.sources.length <= 1;
+        }
       }
 
       // ----------------------------------------------------------
@@ -1170,14 +1203,14 @@
           return;
         }
         state.sources[dragIndex].theta = pointerAngle(e);
-        rebuildSourceList();
+        syncSourceList();
         requestRender();
       });
       sceneCanvas.addEventListener('pointermove', (e) => {
         if (dragIndex < 0) return;
         if (e.buttons === 0) { dragIndex = -1; return; }
         state.sources[dragIndex].theta = pointerAngle(e);
-        rebuildSourceList();
+        syncSourceList();
         requestRender();
       });
       sceneCanvas.addEventListener('pointerup',   () => { dragIndex = -1; });
