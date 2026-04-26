@@ -641,47 +641,128 @@
 
           const scene = new THREE.Scene();
 
-          const camera = new THREE.PerspectiveCamera(35, 16/9, 0.1, 100);
-          camera.position.set(3.2, 2.8, 4.0);
+          const camera = new THREE.PerspectiveCamera(32, 16/9, 0.1, 100);
+          camera.position.set(2.0, 2.6, 3.0);
           camera.lookAt(0, 0, 0);
 
-          scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-          const key = new THREE.DirectionalLight(0xffffff, 0.85);
-          key.position.set(5, 6, 4);
+          scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+          const key = new THREE.DirectionalLight(0xffffff, 0.95);
+          key.position.set(5, 7, 4);
           scene.add(key);
-          const fill = new THREE.DirectionalLight(0xffffff, 0.25);
-          fill.position.set(-4, -2, -3);
+          const fill = new THREE.DirectionalLight(0xffffff, 0.30);
+          fill.position.set(-5, 3, -2);
           scene.add(fill);
+          const rim = new THREE.DirectionalLight(0xbc122a, 0.20);
+          rim.position.set(0, -2, -5);
+          scene.add(rim);
 
-          // Faces ordered: +x, -x, +y, -y, +z, -z
-          // Box local frame mirrors device frame: +x = right edge, +y = top edge, +z = screen-out
-          const faceColors = [
-            0xbc122a, 0x5a0c14,   // +x right (red),    -x left
-            0xe8b923, 0x6e5610,   // +y top   (gold),   -y bottom
-            0xf5f5f5, 0x1f4eb6,   // +z screen (white), -z back (blue)
-          ];
-          const mats = faceColors.map(c => new THREE.MeshStandardMaterial({
-            color: c, roughness: 0.55, metalness: 0.05
-          }));
-          const box = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.8, 0.14), mats);
-          scene.add(box);
+          // Parent rig: rotates the device's local frame so that the rest pose
+          // (alpha=beta=gamma=0) lies flat on the "table" with the screen facing up.
+          // Phone's local +x = right edge, +y = top edge, +z = screen-out.
+          // After -90° around world X: +z (screen) -> world +Y (up); +y (top) -> world -Z.
+          const phoneRig = new THREE.Group();
+          phoneRig.rotation.x = -Math.PI / 2;
+          scene.add(phoneRig);
 
-          // Edges for definition
-          const edges = new THREE.LineSegments(
-            new THREE.EdgesGeometry(box.geometry),
-            new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 })
+          // Body — single dark slab, slightly metallic
+          const bodyMat = new THREE.MeshStandardMaterial({
+            color: 0x1a1a1d, roughness: 0.35, metalness: 0.55
+          });
+          const body = new THREE.Mesh(new THREE.BoxGeometry(1.0, 1.85, 0.14), bodyMat);
+          phoneRig.add(body);
+
+          // Crisp edge lines
+          body.add(new THREE.LineSegments(
+            new THREE.EdgesGeometry(body.geometry),
+            new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 })
+          ));
+
+          // Screen (slight inset, faint glow so it reads as a screen and not a panel)
+          const screenMat = new THREE.MeshStandardMaterial({
+            color: 0x0b1224, roughness: 0.18, metalness: 0.10,
+            emissive: 0x0d2244, emissiveIntensity: 0.28
+          });
+          const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.88, 1.70), screenMat);
+          screen.position.z = 0.0701;
+          body.add(screen);
+
+          // Camera notch / dynamic-island pill at the top of the screen
+          const notchMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+          const notch = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.06), notchMat);
+          notch.position.set(0, 0.78, 0.0703);
+          body.add(notch);
+          const lensInNotch = new THREE.Mesh(
+            new THREE.CircleGeometry(0.018, 24),
+            new THREE.MeshStandardMaterial({ color: 0x111122, roughness: 0.1, metalness: 0.9 })
           );
-          box.add(edges);
+          lensInNotch.position.set(0.085, 0.78, 0.0704);
+          body.add(lensInNotch);
 
-          // World axes helper (X red, Y green, Z blue)
-          const axes = new THREE.AxesHelper(1.4);
-          axes.material.transparent = true;
-          axes.material.opacity = 0.5;
-          scene.add(axes);
+          // Speaker grille just above the notch (a thin bar near the top edge)
+          const grilleMat = new THREE.MeshBasicMaterial({ color: 0x222226 });
+          const grille = new THREE.Mesh(new THREE.PlaneGeometry(0.18, 0.012), grilleMat);
+          grille.position.set(0, 0.86, 0.0703);
+          body.add(grille);
 
-          // Ground reference grid
-          const grid = new THREE.GridHelper(4, 8, 0x444444, 0x222222);
-          grid.position.y = -1.0;
+          // Home indicator bar at the bottom of the screen
+          const homeBar = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.30, 0.018),
+            new THREE.MeshBasicMaterial({ color: 0x6a7280, transparent: true, opacity: 0.7 })
+          );
+          homeBar.position.set(0, -0.81, 0.0703);
+          body.add(homeBar);
+
+          // Back camera bump (raised square block on the upper-left of the back)
+          const bumpMat = new THREE.MeshStandardMaterial({
+            color: 0x121214, roughness: 0.45, metalness: 0.7
+          });
+          const bump = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.34, 0.025), bumpMat);
+          bump.position.set(-0.28, 0.66, -0.083);
+          body.add(bump);
+          // Two lenses on the back
+          const lensMat = new THREE.MeshStandardMaterial({
+            color: 0x05060a, roughness: 0.05, metalness: 0.95,
+            emissive: 0x0a0a14, emissiveIntensity: 0.2
+          });
+          const lensRing = new THREE.MeshStandardMaterial({
+            color: 0x2a2a30, roughness: 0.4, metalness: 0.6
+          });
+          for (const [dx, dy] of [[-0.07, 0.07], [0.07, -0.07]]) {
+            const ring = new THREE.Mesh(new THREE.CircleGeometry(0.07, 28), lensRing);
+            ring.position.set(-0.28 + dx, 0.66 + dy, -0.0961);
+            ring.rotation.y = Math.PI;
+            body.add(ring);
+            const lens = new THREE.Mesh(new THREE.CircleGeometry(0.05, 28), lensMat);
+            lens.position.set(-0.28 + dx, 0.66 + dy, -0.0962);
+            lens.rotation.y = Math.PI;
+            body.add(lens);
+          }
+          // Small flash dot
+          const flash = new THREE.Mesh(
+            new THREE.CircleGeometry(0.022, 16),
+            new THREE.MeshBasicMaterial({ color: 0xfff2c8 })
+          );
+          flash.position.set(-0.14, 0.66, -0.0961);
+          flash.rotation.y = Math.PI;
+          body.add(flash);
+
+          // Side button hints (volume rocker + power)
+          const sideMat = new THREE.MeshStandardMaterial({
+            color: 0x0e0e10, roughness: 0.35, metalness: 0.7
+          });
+          const power = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.22, 0.04), sideMat);
+          power.position.set(0.506, 0.30, 0);
+          body.add(power);
+          const volUp = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.04), sideMat);
+          volUp.position.set(-0.506, 0.42, 0);
+          body.add(volUp);
+          const volDn = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.18, 0.04), sideMat);
+          volDn.position.set(-0.506, 0.18, 0);
+          body.add(volDn);
+
+          // Faint floor grid as a "table"
+          const grid = new THREE.GridHelper(4, 12, 0x333333, 0x1c1c1f);
+          grid.position.y = -0.085;
           scene.add(grid);
 
           function resize() {
@@ -694,30 +775,27 @@
           resize();
           window.addEventListener('resize', resize);
 
-          // Recenter logic: store the inverse of the current device->world rotation,
-          // and pre-multiply it onto every subsequent orientation.
+          // device-orientation -> body quaternion (W3C: intrinsic Z α -> X' β -> Y'' γ)
           const tmpEuler = new THREE.Euler(0, 0, 0, 'ZXY');
           const tmpQ     = new THREE.Quaternion();
-          const offset   = new THREE.Quaternion();   // identity by default
+          const offset   = new THREE.Quaternion();   // identity until Recenter
           let lastRaw = null;
 
           function setOrientation(alpha, beta, gamma) {
             const a = (alpha || 0) * Math.PI / 180;
             const b = (beta  || 0) * Math.PI / 180;
             const g = (gamma || 0) * Math.PI / 180;
-            // W3C DeviceOrientationEvent is intrinsic Z (alpha) -> X' (beta) -> Y'' (gamma)
             tmpEuler.set(b, g, a, 'ZXY');
             tmpQ.setFromEuler(tmpEuler);
             lastRaw = tmpQ.clone();
-            box.quaternion.copy(offset).multiply(tmpQ);
+            body.quaternion.copy(offset).multiply(tmpQ);
             placeholder.style.display = 'none';
           }
 
           document.getElementById('recenterBtn').addEventListener('click', () => {
             if (!lastRaw) return;
             offset.copy(lastRaw).invert();
-            // apply immediately so the box snaps to identity now
-            box.quaternion.copy(offset).multiply(lastRaw);
+            body.quaternion.copy(offset).multiply(lastRaw);  // snap to identity
           });
 
           (function loop() {
