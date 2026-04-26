@@ -264,19 +264,8 @@
     </style>
   </head>
   <body>
-    <header>
-      <a class="brand" href="../">
-        <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
-          <circle cx="50" cy="50" r="46" fill="none" stroke="#bc122a" stroke-width="2" opacity="0.55"/>
-          <circle cx="50" cy="50" r="36" fill="none" stroke="#bc122a" stroke-width="2.5" opacity="0.7"/>
-          <circle cx="50" cy="50" r="26" fill="none" stroke="#bc122a" stroke-width="3"/>
-          <circle cx="50" cy="50" r="14" fill="none" stroke="#bc122a" stroke-width="3.5"/>
-          <circle cx="50" cy="50" r="6"  fill="#bc122a"/>
-        </svg>
-        <span><span>SENSING</span> <span class="red">SCHOOL</span></span>
-      </a>
-      <span class="crumb">Wi-Fi RSSI</span>
-    </header>
+    <header data-nav data-crumb="Wi-Fi RSSI"></header>
+    <script src="../nav.js" defer></script>
     <main>
       <h1>Wi-Fi signal strength</h1>
       <p class="lead">This page reads the laptop's current Wi-Fi link metrics &mdash; RSSI, noise floor, channel, modulation, MCS index &mdash; directly from the operating system. Connect the laptop to your phone's hotspot, then move the phone around and watch every metric track the radio link in real time.</p>

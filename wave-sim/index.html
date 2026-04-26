@@ -261,19 +261,8 @@
     </style>
   </head>
   <body>
-    <header>
-      <a class="brand" href="../">
-        <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
-          <circle cx="50" cy="50" r="46" fill="none" stroke="#bc122a" stroke-width="2" opacity="0.55"/>
-          <circle cx="50" cy="50" r="36" fill="none" stroke="#bc122a" stroke-width="2.5" opacity="0.7"/>
-          <circle cx="50" cy="50" r="26" fill="none" stroke="#bc122a" stroke-width="3"/>
-          <circle cx="50" cy="50" r="14" fill="none" stroke="#bc122a" stroke-width="3.5"/>
-          <circle cx="50" cy="50" r="6"  fill="#bc122a"/>
-        </svg>
-        <span><span>SENSING</span> <span class="red">SCHOOL</span></span>
-      </a>
-      <span class="crumb">Wave Propagation</span>
-    </header>
+    <header data-nav data-crumb="Wave Propagation"></header>
+    <script src="../nav.js" defer></script>
     <main>
       <h1>Wave Propagation</h1>
       <p class="lead">A real-time 2D acoustic wave simulator. Drop sources, paint walls, and watch diffraction, reflection, interference, and standing waves form on the canvas. Solver: scalar wave equation on a staggered grid using leapfrog finite differences (FDTD), with sponge-layer absorbing boundaries.</p>
