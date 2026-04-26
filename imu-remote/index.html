@@ -409,6 +409,22 @@
         </section>
 
         <section class="panel needs-phone host-only">
+          <h2>Racing</h2>
+          <div class="canvas-wrap" style="aspect-ratio: 16 / 9; background: #1f3d22;">
+            <canvas id="raceCanvas"></canvas>
+            <div class="placeholder" id="racePlaceholder">Press Start to drive&hellip;</div>
+          </div>
+          <div class="row" style="margin-top: 12px;">
+            <button id="raceStart">Start</button>
+            <span class="status">Lap <strong id="raceLap" style="color: var(--black);">0</strong></span>
+            <span class="status">Time <strong id="raceTime" style="color: var(--black); font-variant-numeric: tabular-nums;">0:00.00</strong></span>
+            <span class="status">Best <strong id="raceBest" style="color: var(--black); font-variant-numeric: tabular-nums;">—</strong></span>
+            <span class="status" id="raceOffTrack" style="color: var(--red); font-weight: 700; opacity: 0; transition: opacity 0.1s;">OFF TRACK</span>
+          </div>
+          <p class="note">Hold the phone flat in front of you, screen up, and tilt it left/right like a steering wheel. The grey strip is the track — leave it and you slow down. The chequered stripe at the bottom is the start/finish line.</p>
+        </section>
+
+        <section class="panel needs-phone host-only">
           <h2>Display</h2>
           <div class="row">
             <label for="windowSlider">Window</label>
@@ -611,12 +627,14 @@
         let orientCount = 0;
         let orientRateAt = performance.now();
         const box3d = initBoxScene();
+        const racing = initRacing();
 
         function onOrient(o) {
           alphaValEl.textContent = (o.alpha == null) ? '—' : o.alpha.toFixed(1) + '°';
           betaValEl.textContent  = (o.beta  == null) ? '—' : o.beta.toFixed(1) + '°';
           gammaValEl.textContent = (o.gamma == null) ? '—' : o.gamma.toFixed(1) + '°';
           if (box3d) box3d.setOrientation(o.alpha, o.beta, o.gamma);
+          if (racing) racing.setOrient(o);
           orientCount++;
           const now = performance.now();
           if (now - orientRateAt > 500) {
@@ -804,6 +822,251 @@
           })();
 
           return { setOrientation };
+        }
+
+        function initRacing() {
+          const canvas = document.getElementById('raceCanvas');
+          if (!canvas) return null;
+          const ctx = canvas.getContext('2d');
+          const startBtn   = document.getElementById('raceStart');
+          const placeholder = document.getElementById('racePlaceholder');
+          const lapEl      = document.getElementById('raceLap');
+          const timeEl     = document.getElementById('raceTime');
+          const bestEl     = document.getElementById('raceBest');
+          const offTrackEl = document.getElementById('raceOffTrack');
+
+          // Logical world (16:9). The canvas pixel size is whatever; we scale.
+          const W = 1000, H = 562;
+          const track = {
+            cx: W / 2, cy: H / 2,
+            w: 760, h: 400,    // outer dim of CENTERLINE rectangle
+            r: 140,            // corner radius
+            width: 92,         // surface width
+          };
+          const halfW = track.width / 2;
+          const startX = track.cx;
+          const startY = track.cy + track.h / 2;
+          const startHeading = 0; // facing +x; clockwise lap
+
+          const car = { x: startX, y: startY, heading: startHeading };
+          let prevX = startX, prevY = startY;
+          let latestGamma = 0;
+          let game = {
+            running: false,
+            lap: 0, lapStartT: 0, bestLap: Infinity, lastT: 0,
+          };
+
+          function fmtTime(s) {
+            const m = Math.floor(s / 60);
+            const r = (s - m * 60).toFixed(2).padStart(5, '0');
+            return m + ':' + r;
+          }
+
+          function reset() {
+            car.x = startX; car.y = startY; car.heading = startHeading;
+            prevX = startX; prevY = startY;
+            game.lap = 0; game.bestLap = Infinity;
+            lapEl.textContent = '0';
+            timeEl.textContent = '0:00.00';
+            bestEl.textContent = '—';
+          }
+
+          function setOrient(o) {
+            if (typeof o.gamma === 'number') latestGamma = o.gamma;
+          }
+
+          // Distance from (x,y) to nearest point on the centerline of a rounded rectangle.
+          function distToCenterline(x, y) {
+            const dx = x - track.cx, dy = y - track.cy;
+            const halfRectW = (track.w - 2 * track.r) / 2;
+            const halfRectH = (track.h - 2 * track.r) / 2;
+            const cx = Math.max(-halfRectW, Math.min(halfRectW, dx));
+            const cy = Math.max(-halfRectH, Math.min(halfRectH, dy));
+            const ex = dx - cx, ey = dy - cy;
+            const d = Math.hypot(ex, ey);
+            return Math.abs(d - track.r);
+          }
+
+          function step(now) {
+            if (!game.running) return;
+            const dt = Math.min(0.05, (now - game.lastT) / 1000);
+            game.lastT = now;
+
+            // gamma in [-90, 90]; ±25° ≈ full lock
+            const steer = Math.max(-1, Math.min(1, latestGamma / 25));
+            const off = distToCenterline(car.x, car.y) > halfW;
+            const baseSpeed = 320;
+            const speed = off ? baseSpeed * 0.35 : baseSpeed;
+
+            car.heading += steer * 2.4 * dt;
+            prevX = car.x; prevY = car.y;
+            car.x += Math.cos(car.heading) * speed * dt;
+            car.y += Math.sin(car.heading) * speed * dt;
+
+            // Lap detection: car crosses x = startX going right (heading roughly +x), y near startY
+            const crossed =
+              Math.abs(car.y - startY) < halfW &&
+              prevX < startX && car.x >= startX &&
+              Math.cos(car.heading) > 0;
+            if (crossed) {
+              if (game.lap > 0) {
+                const t = (now - game.lapStartT) / 1000;
+                if (t < game.bestLap) {
+                  game.bestLap = t;
+                  bestEl.textContent = fmtTime(t);
+                }
+              }
+              game.lap++;
+              game.lapStartT = now;
+              lapEl.textContent = String(game.lap);
+            }
+            if (game.lap > 0) {
+              timeEl.textContent = fmtTime((now - game.lapStartT) / 1000);
+            }
+            if (offTrackEl) offTrackEl.style.opacity = off ? '1' : '0';
+
+            draw(off);
+            requestAnimationFrame(step);
+          }
+
+          function roundedRect(x, y, w, h, r) {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.arcTo(x + w, y, x + w, y + r, r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+            ctx.lineTo(x + r, y + h);
+            ctx.arcTo(x, y + h, x, y + h - r, r);
+            ctx.lineTo(x, y + r);
+            ctx.arcTo(x, y, x + r, y, r);
+            ctx.closePath();
+          }
+
+          function drawChecker(cx, cy, w, h, n) {
+            const cellW = w / n;
+            const cellH = h / 2;
+            for (let i = 0; i < n; i++) {
+              for (let j = 0; j < 2; j++) {
+                ctx.fillStyle = ((i + j) % 2 === 0) ? '#fff' : '#000';
+                ctx.fillRect(cx - w/2 + i * cellW, cy - h/2 + j * cellH,
+                             cellW + 0.5, cellH + 0.5);
+              }
+            }
+          }
+
+          function drawCar(off) {
+            const len = 38, wid = 18;
+            // shadow
+            ctx.fillStyle = 'rgba(0,0,0,0.35)';
+            ctx.fillRect(-len/2 + 2, -wid/2 + 3, len, wid);
+            // body
+            ctx.fillStyle = off ? '#bc122a' : '#1f4eb6';
+            ctx.beginPath();
+            ctx.moveTo(-len/2, -wid/2);
+            ctx.lineTo(len/2 - 6, -wid/2);
+            ctx.lineTo(len/2, 0);
+            ctx.lineTo(len/2 - 6, wid/2);
+            ctx.lineTo(-len/2, wid/2);
+            ctx.closePath();
+            ctx.fill();
+            // wheels
+            ctx.fillStyle = '#0c0c0e';
+            ctx.fillRect(-len/2 + 2, -wid/2 - 4, 9, 4);
+            ctx.fillRect(-len/2 + 2,  wid/2,    9, 4);
+            ctx.fillRect( len/2 - 14, -wid/2 - 4, 9, 4);
+            ctx.fillRect( len/2 - 14,  wid/2,    9, 4);
+            // cockpit
+            ctx.fillStyle = 'rgba(0,0,0,0.55)';
+            ctx.beginPath();
+            ctx.ellipse(2, 0, 6, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          function draw(off) {
+            const rect = canvas.getBoundingClientRect();
+            const dpr = window.devicePixelRatio || 1;
+            const cw = Math.round(rect.width * dpr);
+            const ch = Math.round(rect.height * dpr);
+            if (canvas.width !== cw || canvas.height !== ch) {
+              canvas.width = cw; canvas.height = ch;
+            }
+
+            // grass
+            ctx.fillStyle = '#1f3d22';
+            ctx.fillRect(0, 0, cw, ch);
+
+            // logical -> physical scale (letterbox)
+            ctx.save();
+            const scale = Math.min(cw / W, ch / H);
+            ctx.translate((cw - W * scale) / 2, (ch - H * scale) / 2);
+            ctx.scale(scale, scale);
+
+            const tx = track.cx - track.w / 2;
+            const ty = track.cy - track.h / 2;
+
+            // track surface
+            ctx.lineWidth = track.width;
+            ctx.lineCap = 'butt';
+            ctx.lineJoin = 'round';
+            ctx.strokeStyle = '#3a3a40';
+            roundedRect(tx, ty, track.w, track.h, track.r);
+            ctx.stroke();
+
+            // outer + inner edges
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#fff';
+            roundedRect(tx - halfW, ty - halfW,
+                        track.w + track.width, track.h + track.width, track.r + halfW);
+            ctx.stroke();
+            const innerR = Math.max(0, track.r - halfW);
+            roundedRect(tx + halfW, ty + halfW,
+                        track.w - track.width, track.h - track.width, innerR);
+            ctx.stroke();
+
+            // dashed centerline
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = '#e8b923';
+            ctx.setLineDash([18, 14]);
+            roundedRect(tx, ty, track.w, track.h, track.r);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // start/finish line
+            drawChecker(startX, startY, track.width, 18, 6);
+
+            // car
+            ctx.save();
+            ctx.translate(car.x, car.y);
+            ctx.rotate(car.heading);
+            drawCar(off);
+            ctx.restore();
+
+            ctx.restore();
+          }
+
+          startBtn.addEventListener('click', () => {
+            if (!game.running) {
+              reset();
+              placeholder.style.display = 'none';
+              game.running = true;
+              game.lapStartT = performance.now();
+              game.lastT = performance.now();
+              startBtn.textContent = 'Stop';
+              startBtn.classList.add('danger');
+              requestAnimationFrame(step);
+            } else {
+              game.running = false;
+              startBtn.textContent = 'Start';
+              startBtn.classList.remove('danger');
+            }
+          });
+
+          // initial paint so the track is visible before pairing
+          draw(false);
+          window.addEventListener('resize', () => draw(false));
+
+          return { setOrient };
         }
 
         function onCaps(c) {
