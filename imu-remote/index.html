@@ -374,18 +374,19 @@
         <section class="panel needs-phone host-only">
           <h2>Display</h2>
           <div class="row">
-            <label for="windowSel">Window</label>
-            <select id="windowSel">
-              <option value="2">2 s</option>
-              <option value="5" selected>5 s</option>
-              <option value="10">10 s</option>
-              <option value="20">20 s</option>
-            </select>
+            <label for="windowSlider">Window</label>
+            <input type="range" id="windowSlider" min="0" max="1" step="0.001" />
+            <span class="status" id="windowVal" style="min-width: 64px; text-align: right;">5.0 s</span>
+          </div>
+          <div class="row">
             <label for="accelMode">Accel</label>
             <select id="accelMode">
               <option value="linear" selected>Linear (gravity removed)</option>
               <option value="raw">Including gravity</option>
             </select>
+            <label style="min-width: 0; display: inline-flex; align-items: center; gap: 6px; text-transform: none; letter-spacing: 0;">
+              <input type="checkbox" id="showSamples" /> Show samples
+            </label>
             <span class="status" id="rateEl">— Hz</span>
           </div>
         </section>
@@ -433,9 +434,20 @@
         const joinForm   = document.getElementById('joinForm');
         const joinCodeIn = document.getElementById('joinCode');
         const joinStatus = document.getElementById('joinStatus');
-        const windowSel  = document.getElementById('windowSel');
-        const accelMode  = document.getElementById('accelMode');
-        const rateEl     = document.getElementById('rateEl');
+        const windowSlider = document.getElementById('windowSlider');
+        const windowVal    = document.getElementById('windowVal');
+        const accelMode    = document.getElementById('accelMode');
+        const rateEl       = document.getElementById('rateEl');
+
+        const WMIN = 0.5, WMAX = 120;
+        const sliderToWin = t => WMIN * Math.pow(WMAX / WMIN, t);
+        const winToSlider = s => Math.log(s / WMIN) / Math.log(WMAX / WMIN);
+        const fmtWin = s => s < 10 ? s.toFixed(1) + ' s'
+                          : s < 60 ? s.toFixed(0) + ' s'
+                          : (s / 60).toFixed(1) + ' min';
+        let windowSec = 5;
+        windowSlider.value = winToSlider(windowSec);
+        windowVal.textContent = fmtWin(windowSec);
 
         const charts = {
           accel: makeChart('accelCanvas', 'accelPlaceholder', 'accelLegend',
@@ -547,14 +559,11 @@
 
         function onSample(s) {
           const t = s.t;
-          const win = parseFloat(windowSel.value);
           const acc = (accelMode.value === 'raw') ? s.accelG : s.accel;
           if (acc) charts.accel.push(t, acc);
           if (s.gyro) charts.gyro.push(t, s.gyro);
           if (s.mag) charts.mag.push(t, s.mag);
           else if (s.heading != null) charts.mag.push(t, { x: s.heading, y: NaN, z: NaN });
-
-          for (const k of ['accel','gyro','mag']) charts[k].setWindow(win);
 
           sampleCount++;
           const now = performance.now();
@@ -572,10 +581,20 @@
           dataConn.send({ type: 'config' });
         }
 
-        windowSel.addEventListener('change', () => {
-          const w = parseFloat(windowSel.value);
-          for (const k of ['accel','gyro','mag']) charts[k].setWindow(w);
-        });
+        function applyWindow() {
+          windowSec = sliderToWin(parseFloat(windowSlider.value));
+          windowVal.textContent = fmtWin(windowSec);
+          for (const k of ['accel','gyro','mag']) charts[k].setWindow(windowSec);
+        }
+        windowSlider.addEventListener('input', applyWindow);
+        applyWindow();
+
+        const showSamplesEl = document.getElementById('showSamples');
+        function applyShowSamples() {
+          for (const k of ['accel','gyro','mag']) charts[k].setShowSamples(showSamplesEl.checked);
+        }
+        showSamplesEl.addEventListener('change', applyShowSamples);
+        applyShowSamples();
 
         // periodic stale check
         setInterval(() => {
@@ -613,11 +632,13 @@
 
         const buf = axes.map(() => []); // [{t, v}]
         let windowSec = 5;
+        let showSamples = false;
         let firstSampleAt = null;
         let lastT = 0;
         let drawScheduled = false;
 
         function setWindow(s) { windowSec = s; }
+        function setShowSamples(v) { showSamples = !!v; }
 
         function push(t, sample) {
           if (firstSampleAt === null) {
@@ -716,10 +737,12 @@
 
           // traces
           const styles = getComputedStyle(document.body);
+          const r = 1.8 * dpr;
           for (let i = 0; i < axes.length; i++) {
             const arr = buf[i];
             if (arr.length === 0) continue;
-            ctx.strokeStyle = styles.getPropertyValue(axes[i][1]).trim() || '#fff';
+            const color = styles.getPropertyValue(axes[i][1]).trim() || '#fff';
+            ctx.strokeStyle = color;
             ctx.lineWidth = 1.4 * dpr;
             ctx.beginPath();
             let pen = false;
@@ -731,6 +754,18 @@
               else ctx.lineTo(x, y);
             }
             ctx.stroke();
+            if (showSamples) {
+              ctx.fillStyle = color;
+              for (const { t, v } of arr) {
+                if (!isFinite(v)) continue;
+                const x = xOf(t);
+                if (x < -r || x > w + r) continue;
+                const y = yOf(v);
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, Math.PI * 2);
+                ctx.fill();
+              }
+            }
           }
 
           // y-range label (top right)
@@ -757,7 +792,7 @@
           if (firstSampleAt !== null) draw();
         });
 
-        return { push, setWindow };
+        return { push, setWindow, setShowSamples };
       }
 
       /* ============ PHONE ============ */
@@ -779,10 +814,22 @@
           mag: null,
           heading: null,
         };
-        let lastSent = 0;
         let lastUI = 0;
-        const sendInterval = 1000 / 60;
         const uiInterval = 100;
+
+        function sendNow() {
+          if (!conn || !conn.open) return;
+          const t = (performance.now() - t0) / 1000;
+          conn.send({
+            type: 'imu',
+            t,
+            accel: latest.accel,
+            accelG: latest.accelG,
+            gyro: latest.gyro,
+            mag: latest.mag,
+            heading: latest.heading,
+          });
+        }
 
         async function requestMotionPermissions() {
           // iOS 13+: requestPermission on DeviceMotionEvent / DeviceOrientationEvent
@@ -809,13 +856,13 @@
             if (ag && (ag.x !== null || ag.y !== null || ag.z !== null)) {
               latest.accelG = { x: ag.x || 0, y: ag.y || 0, z: ag.z || 0 };
               if (!latest.accel) {
-                // some browsers don't expose linear; we'll use accelG as fallback
                 latest.accel = latest.accelG;
               }
             }
             if (r && (r.alpha !== null || r.beta !== null || r.gamma !== null)) {
               latest.gyro = { x: r.beta || 0, y: r.gamma || 0, z: r.alpha || 0 };
             }
+            sendNow();
           }, { passive: true });
         }
 
@@ -836,6 +883,7 @@
             const mag = new window.Magnetometer({ frequency: 60, referenceFrame: 'device' });
             mag.addEventListener('reading', () => {
               latest.mag = { x: mag.x, y: mag.y, z: mag.z };
+              sendNow();
             });
             mag.addEventListener('error', () => {});
             mag.start();
@@ -847,22 +895,6 @@
 
         function tick() {
           const now = performance.now();
-          const t = (now - t0) / 1000;
-
-          if (now - lastSent >= sendInterval) {
-            lastSent = now;
-            if (conn && conn.open) {
-              conn.send({
-                type: 'imu',
-                t,
-                accel: latest.accel,
-                accelG: latest.accelG,
-                gyro: latest.gyro,
-                mag: latest.mag,
-                heading: latest.heading,
-              });
-            }
-          }
           if (now - lastUI >= uiInterval) {
             lastUI = now;
             phoneAccel.textContent = latest.accel

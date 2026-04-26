@@ -416,6 +416,31 @@
       const role = hostId ? 'phone' : 'laptop';
       document.body.dataset.role = role;
 
+      // Monkey-patch RTCPeerConnection to force Opus into fullband + max bitrate.
+      // PeerJS uses Opus by default in voice mode, which hard-limits anything above ~12 kHz.
+      (function patchOpusSDP() {
+        if (!window.RTCPeerConnection) return;
+        const opusParams = 'maxplaybackrate=48000;stereo=0;useinbandfec=1;usedtx=0;maxaveragebitrate=510000;cbr=1;minptime=10';
+        function improve(sdp) {
+          if (!sdp) return sdp;
+          const m = sdp.match(/a=rtpmap:(\d+)\s+opus\/48000(?:\/\d+)?/i);
+          if (!m) return sdp;
+          const pt = m[1];
+          const fmtpRe = new RegExp('(a=fmtp:' + pt + '\\s+)([^\\r\\n]*)', 'g');
+          if (fmtpRe.test(sdp)) {
+            return sdp.replace(fmtpRe, '$1' + opusParams);
+          }
+          return sdp.replace(m[0], m[0] + '\r\na=fmtp:' + pt + ' ' + opusParams);
+        }
+        const origSet = RTCPeerConnection.prototype.setLocalDescription;
+        RTCPeerConnection.prototype.setLocalDescription = function(desc) {
+          if (desc && desc.sdp) {
+            try { desc = { type: desc.type, sdp: improve(desc.sdp) }; } catch (e) {}
+          }
+          return origSet.call(this, desc);
+        };
+      })();
+
       const PUBLIC_ORIGIN = 'https://sensingschool.com';
       const LOCAL_BASE = '/sensingschool';
       const isLocal =
