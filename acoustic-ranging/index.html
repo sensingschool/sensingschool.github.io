@@ -1,0 +1,950 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acoustic Ranging · Sensing School</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XTHNL4559K"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XTHNL4559K');
+    </script>
+    <script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
+    <style>
+      :root {
+        --red: #bc122a;
+        --black: #111;
+        --grey-line: #dee2e6;
+        --grey-text: #5b6068;
+        --bg: #fafafa;
+        --green: #2a8b2a;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: 'Roboto', Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--black);
+        -webkit-font-smoothing: antialiased;
+      }
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--grey-line);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header a.brand {
+        color: var(--black);
+        text-decoration: none;
+        font-weight: 900;
+        font-size: 18px;
+        letter-spacing: -0.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      header a.brand .red { color: var(--red); }
+      header a.brand svg.logo { width: 28px; height: 28px; flex: 0 0 auto; }
+      header .crumb {
+        color: var(--grey-text);
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+      }
+      main { max-width: 960px; margin: 0 auto; padding: 32px; }
+      h1 {
+        font-weight: 900;
+        font-size: clamp(28px, 4vw, 40px);
+        margin: 0 0 8px;
+        letter-spacing: -0.5px;
+      }
+      p.lead {
+        color: var(--grey-text);
+        margin: 0 0 32px;
+        max-width: 60ch;
+        line-height: 1.5;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid var(--grey-line);
+        border-radius: 10px;
+        padding: 24px;
+        margin-bottom: 20px;
+      }
+      .panel h2 {
+        margin: 0 0 16px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+      }
+      .panel h3 {
+        margin: 0 0 8px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        color: var(--black);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .row:last-child { margin-bottom: 0; }
+      button {
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        padding: 10px 22px;
+        border: 1px solid var(--black);
+        background: var(--black);
+        color: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: opacity 0.15s, background 0.15s;
+      }
+      button:hover:not(:disabled) { opacity: 0.85; }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+      button.big { font-size: 16px; padding: 16px 36px; }
+      .canvas-wrap {
+        position: relative;
+        background: #0c0c0e;
+        border-radius: 6px;
+        overflow: hidden;
+        height: 220px;
+        margin-bottom: 16px;
+      }
+      .canvas-wrap:last-child { margin-bottom: 0; }
+      .canvas-wrap canvas { width: 100%; height: 100%; display: block; }
+      .canvas-wrap .placeholder {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: rgba(255,255,255,0.5);
+        font-size: 13px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        pointer-events: none;
+      }
+      .canvas-label {
+        position: absolute;
+        top: 8px;
+        left: 12px;
+        color: rgba(255,255,255,0.65);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        pointer-events: none;
+      }
+      .canvas-meta {
+        position: absolute;
+        top: 8px;
+        right: 12px;
+        color: rgba(255,255,255,0.45);
+        font-size: 10px;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: 0.5px;
+        pointer-events: none;
+      }
+      .status { font-size: 13px; color: var(--grey-text); margin: 0; }
+      .status.error { color: var(--red); }
+      .status.ok { color: var(--green); font-weight: 500; }
+      .note {
+        font-size: 12px;
+        color: var(--grey-text);
+        margin-top: 16px;
+        line-height: 1.5;
+      }
+      .pair-help {
+        color: var(--grey-text);
+        font-size: 13px;
+        margin: 0;
+        line-height: 1.5;
+      }
+      .pair-help strong { color: var(--black); font-weight: 700; }
+      .pair-code-block {
+        display: flex;
+        align-items: baseline;
+        gap: 12px;
+        margin-bottom: 8px;
+      }
+      .pair-code-label {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+      }
+      .pair-code {
+        font-size: 44px;
+        font-weight: 900;
+        letter-spacing: 6px;
+        font-variant-numeric: tabular-nums;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        color: var(--black);
+        line-height: 1;
+      }
+      .join-help { margin: 0 0 12px; color: var(--grey-text); font-size: 13px; }
+      .join-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 0; }
+      #joinCode, #reconnectCode {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: 6px;
+        text-align: center;
+        padding: 10px 14px;
+        border: 1px solid var(--grey-line);
+        border-radius: 6px;
+        background: #f5f5f5;
+        width: 150px;
+        min-width: 0;
+      }
+      #joinCode:focus, #reconnectCode:focus {
+        outline: none;
+        border-color: var(--red);
+        background: #fff;
+      }
+      .timeline {
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 12px;
+        color: var(--grey-text);
+        line-height: 1.7;
+        margin-top: 8px;
+        white-space: pre;
+        background: #f5f5f5;
+        border-radius: 6px;
+        padding: 12px 14px;
+        border: 1px solid var(--grey-line);
+        overflow-x: auto;
+      }
+      body[data-role="laptop"] .phone-only { display: none; }
+      body[data-role="phone"] .laptop-only { display: none; }
+      body:not([data-role]) .laptop-only,
+      body:not([data-role]) .phone-only { display: none; }
+      body[data-role="laptop"]:not([data-paired]) .needs-phone {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+      .join-only { display: none; }
+      @media (pointer: coarse) {
+        body[data-role="laptop"] .host-only { display: none; }
+        body[data-role="laptop"] .join-only { display: block; }
+      }
+      @media (pointer: coarse) {
+        #joinCode, #reconnectCode {
+          font-size: 32px;
+          letter-spacing: 8px;
+          width: 100%;
+          max-width: 240px;
+          padding: 14px 16px;
+        }
+        .join-form button { font-size: 15px; padding: 14px 24px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="../">
+        <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="46" fill="none" stroke="#bc122a" stroke-width="2" opacity="0.55"/>
+          <circle cx="50" cy="50" r="36" fill="none" stroke="#bc122a" stroke-width="2.5" opacity="0.7"/>
+          <circle cx="50" cy="50" r="26" fill="none" stroke="#bc122a" stroke-width="3"/>
+          <circle cx="50" cy="50" r="14" fill="none" stroke="#bc122a" stroke-width="3.5"/>
+          <circle cx="50" cy="50" r="6"  fill="#bc122a"/>
+        </svg>
+        <span><span>SENSING</span> <span class="red">SCHOOL</span></span>
+      </a>
+      <span class="crumb">Acoustic Ranging</span>
+    </header>
+    <main>
+      <!-- LAPTOP ROLE -->
+      <div class="laptop-only">
+        <h1>Acoustic Ranging</h1>
+        <p class="lead host-only">Pair a phone, then run a synchronized chirp exchange. Both devices record their microphones for 6 s. The laptop chirps at <strong>t&nbsp;=&nbsp;2 s</strong>, the phone chirps at <strong>t&nbsp;=&nbsp;4 s</strong>. Each chirp is a 200 ms 1&rarr;4 kHz linear sweep. The phone uploads its recording over WebRTC and both waveforms are plotted below.</p>
+        <p class="lead join-only">Enter the 4-digit code shown on the host laptop to use this phone as the second microphone.</p>
+
+        <section class="panel host-only">
+          <h2>Pair your phone</h2>
+          <div class="pair-code-block">
+            <span class="pair-code-label">Code</span>
+            <span class="pair-code" id="pairCode">— — — —</span>
+          </div>
+          <p class="status" id="pairStatus">Generating session&hellip;</p>
+          <p class="pair-help">On your phone, open <strong>sensingschool.com/acoustic-ranging</strong> and enter this code.</p>
+        </section>
+
+        <section class="panel join-only">
+          <h2>Join a session</h2>
+          <p class="join-help">Enter the 4-digit code from the host laptop:</p>
+          <form id="joinForm" class="join-form">
+            <input type="text" id="joinCode" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" autocomplete="off" aria-label="4-digit pairing code"/>
+            <button type="submit">Connect</button>
+            <span class="status" id="joinStatus"></span>
+          </form>
+        </section>
+
+        <section class="panel needs-phone host-only">
+          <h2>Run experiment</h2>
+          <div class="row">
+            <button id="runBtn" class="big">Run</button>
+            <span class="status" id="runStatus">Ready.</span>
+          </div>
+          <pre class="timeline" id="timeline">  t = 0.0 s   both microphones start recording
+  t = 2.0 s   laptop emits 200 ms chirp (1 &rarr; 4 kHz)
+  t = 4.0 s   phone  emits 200 ms chirp (1 &rarr; 4 kHz)
+  t = 6.0 s   stop &middot; phone uploads recording to laptop</pre>
+          <p class="note">Use a quiet room. Set both devices to a comfortable volume; the chirps are audible. The two recordings are not sample-aligned across devices &mdash; aligning by the captured chirps is the next step.</p>
+        </section>
+
+        <section class="panel needs-phone host-only">
+          <h2>Recordings</h2>
+          <div class="canvas-wrap">
+            <canvas id="laptopWave"></canvas>
+            <div class="canvas-label">Laptop microphone</div>
+            <div class="canvas-meta" id="laptopMeta"></div>
+            <div class="placeholder" id="laptopPh">No recording yet</div>
+          </div>
+          <div class="canvas-wrap">
+            <canvas id="phoneWave"></canvas>
+            <div class="canvas-label">Phone microphone</div>
+            <div class="canvas-meta" id="phoneMeta"></div>
+            <div class="placeholder" id="phonePh">No recording yet</div>
+          </div>
+        </section>
+      </div>
+
+      <!-- PHONE ROLE -->
+      <div class="phone-only">
+        <h1>Acoustic Ranging · Phone</h1>
+        <p class="lead">This phone is the second microphone and a chirp source. The laptop drives the experiment; this page records its mic, plays a chirp on cue, and uploads the recording.</p>
+
+        <section class="panel">
+          <h2>Status</h2>
+          <p class="status" id="phoneStatus">Tap Start to enable mic and connect.</p>
+          <div class="row" style="margin-top: 16px;">
+            <button id="phoneStart" class="big">Start</button>
+          </div>
+          <p class="note">Keep this page open and the screen on. Place the phone where you want to range from.</p>
+        </section>
+
+        <section class="panel" id="reconnectPanel" hidden>
+          <h2>Try a different code</h2>
+          <p class="join-help">Enter a 4-digit code from the host laptop:</p>
+          <form id="reconnectForm" class="join-form">
+            <input type="text" id="reconnectCode" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="0000" autocomplete="off" aria-label="4-digit pairing code"/>
+            <button type="submit">Connect</button>
+          </form>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const codeParam = params.get('code');
+      const hostId = codeParam ? 'sslab-arange-' + codeParam : null;
+      const role = hostId ? 'phone' : 'laptop';
+      document.body.dataset.role = role;
+
+      // ---- Acoustic ranging constants ----
+      const REC_DURATION = 6.0;       // seconds of recording on each device
+      const LAPTOP_CHIRP_AT = 2.0;    // seconds after recording start
+      const PHONE_CHIRP_AT  = 4.0;
+      const CHIRP_DUR = 0.200;        // seconds
+      const CHIRP_F0 = 1000;
+      const CHIRP_F1 = 4000;
+      const CHIRP_GAIN = 0.6;
+
+      // ---- chirp synthesis ----
+      function buildChirp(audioCtx) {
+        const sr = audioCtx.sampleRate;
+        const N = Math.round(sr * CHIRP_DUR);
+        const buf = audioCtx.createBuffer(1, N, sr);
+        const d = buf.getChannelData(0);
+        const k = (CHIRP_F1 - CHIRP_F0) / CHIRP_DUR;
+        for (let i = 0; i < N; i++) {
+          const t = i / sr;
+          const phi = 2 * Math.PI * (CHIRP_F0 * t + 0.5 * k * t * t);
+          // Hann window to remove clicks at the edges
+          const win = 0.5 * (1 - Math.cos(2 * Math.PI * i / (N - 1)));
+          d[i] = CHIRP_GAIN * win * Math.sin(phi);
+        }
+        return buf;
+      }
+
+      // ---- mic recorder using ScriptProcessorNode (broadly supported) ----
+      function makeMicRecorder(audioCtx, stream) {
+        const src = audioCtx.createMediaStreamSource(stream);
+        const sp  = audioCtx.createScriptProcessor(4096, 1, 1);
+        const sink = audioCtx.createGain();
+        sink.gain.value = 0; // silent — we just want the graph to pull
+        let chunks = [];
+        let recording = false;
+        let recordedFrames = 0;
+        let frameLimit = 0;
+        let onDone = null;
+        sp.onaudioprocess = (e) => {
+          if (!recording) return;
+          const input = e.inputBuffer.getChannelData(0);
+          const remaining = frameLimit - recordedFrames;
+          if (remaining <= 0) return;
+          const take = Math.min(input.length, remaining);
+          const slice = new Float32Array(take);
+          slice.set(input.subarray(0, take));
+          chunks.push(slice);
+          recordedFrames += take;
+          if (recordedFrames >= frameLimit) {
+            recording = false;
+            const cb = onDone; onDone = null;
+            if (cb) cb(concatChunks(chunks, recordedFrames));
+            chunks = [];
+            recordedFrames = 0;
+          }
+        };
+        src.connect(sp);
+        sp.connect(sink);
+        sink.connect(audioCtx.destination);
+        return {
+          start(durationSec, cb) {
+            chunks = [];
+            recordedFrames = 0;
+            frameLimit = Math.round(audioCtx.sampleRate * durationSec);
+            onDone = cb;
+            recording = true;
+          },
+          dispose() {
+            try { src.disconnect(); } catch (_) {}
+            try { sp.disconnect(); } catch (_) {}
+            try { sink.disconnect(); } catch (_) {}
+          }
+        };
+      }
+      function concatChunks(chunks, total) {
+        const out = new Float32Array(total);
+        let off = 0;
+        for (const c of chunks) { out.set(c, off); off += c.length; }
+        return out;
+      }
+
+      // ---- Float32 <-> Int16 ----
+      function float32ToInt16(f32) {
+        const out = new Int16Array(f32.length);
+        for (let i = 0; i < f32.length; i++) {
+          let s = Math.max(-1, Math.min(1, f32[i]));
+          out[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+        }
+        return out;
+      }
+      function int16ToFloat32(i16) {
+        const out = new Float32Array(i16.length);
+        for (let i = 0; i < i16.length; i++) out[i] = i16[i] / 0x8000;
+        return out;
+      }
+
+      // ---- waveform drawing ----
+      function drawWaveform(canvas, samples, sampleRate, markers) {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        const w = Math.round(rect.width * dpr);
+        const h = Math.round(rect.height * dpr);
+        if (canvas.width !== w || canvas.height !== h) {
+          canvas.width = w; canvas.height = h;
+        }
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0c0c0e';
+        ctx.fillRect(0, 0, w, h);
+
+        const totalT = samples.length / sampleRate;
+        const padTop = 28 * dpr;
+        const padBot = 18 * dpr;
+        const plotH = h - padTop - padBot;
+        const midY = padTop + plotH / 2;
+
+        // gridlines: every 0.5 s
+        ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+        ctx.lineWidth = 1 * dpr;
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.font = (10 * dpr) + 'px ui-monospace, Menlo, monospace';
+        for (let s = 0; s <= Math.ceil(totalT); s += 0.5) {
+          if (s > totalT) break;
+          const x = (s / totalT) * w;
+          ctx.beginPath();
+          ctx.moveTo(x, padTop);
+          ctx.lineTo(x, h - padBot);
+          ctx.stroke();
+          if (Math.abs(s - Math.round(s)) < 1e-6) {
+            ctx.fillText(s.toFixed(0) + ' s', x + 3 * dpr, h - 5 * dpr);
+          }
+        }
+        // zero line
+        ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+        ctx.beginPath();
+        ctx.moveTo(0, midY);
+        ctx.lineTo(w, midY);
+        ctx.stroke();
+
+        // marker lines (e.g. emit times)
+        if (markers) {
+          for (const m of markers) {
+            const x = (m.t / totalT) * w;
+            ctx.strokeStyle = m.color || 'rgba(232,185,35,0.55)';
+            ctx.lineWidth = 1.25 * dpr;
+            ctx.beginPath();
+            ctx.moveTo(x, padTop);
+            ctx.lineTo(x, h - padBot);
+            ctx.stroke();
+            if (m.label) {
+              ctx.fillStyle = m.color || 'rgba(232,185,35,0.9)';
+              ctx.font = '700 ' + (10 * dpr) + 'px Roboto, sans-serif';
+              ctx.fillText(m.label, x + 4 * dpr, padTop - 6 * dpr);
+            }
+          }
+        }
+
+        // peak-decimated waveform
+        const N = samples.length;
+        ctx.strokeStyle = '#bc122a';
+        ctx.lineWidth = 1 * dpr;
+        ctx.beginPath();
+        let prevTop = midY, prevBot = midY;
+        for (let px = 0; px < w; px++) {
+          const i0 = Math.floor(px * N / w);
+          const i1 = Math.max(i0 + 1, Math.floor((px + 1) * N / w));
+          let mn = 1, mx = -1;
+          for (let i = i0; i < i1 && i < N; i++) {
+            const v = samples[i];
+            if (v < mn) mn = v;
+            if (v > mx) mx = v;
+          }
+          if (mn > mx) { mn = 0; mx = 0; }
+          const yMax = midY - mx * (plotH / 2);
+          const yMin = midY - mn * (plotH / 2);
+          if (px === 0) {
+            ctx.moveTo(px, yMin);
+            ctx.lineTo(px, yMax);
+          } else {
+            ctx.moveTo(px, Math.min(prevTop, yMax));
+            ctx.lineTo(px, Math.max(prevBot, yMin));
+          }
+          prevTop = yMax;
+          prevBot = yMin;
+        }
+        ctx.stroke();
+      }
+
+      const PUBLIC_ORIGIN = 'https://sensingschool.com';
+      const LOCAL_BASE = '/sensingschool';
+      const isLocal =
+        ['localhost', '127.0.0.1', ''].includes(location.hostname) ||
+        location.hostname.startsWith('192.168.') ||
+        location.hostname.startsWith('10.') ||
+        location.protocol === 'file:';
+
+      if (role === 'laptop') initLaptop(); else initPhone();
+
+      /* ============ LAPTOP ============ */
+      function initLaptop() {
+        const pairCodeEl = document.getElementById('pairCode');
+        const pairStatus = document.getElementById('pairStatus');
+        const joinForm   = document.getElementById('joinForm');
+        const joinCodeIn = document.getElementById('joinCode');
+        const joinStatus = document.getElementById('joinStatus');
+        const runBtn     = document.getElementById('runBtn');
+        const runStatus  = document.getElementById('runStatus');
+        const laptopWave = document.getElementById('laptopWave');
+        const phoneWave  = document.getElementById('phoneWave');
+        const laptopPh   = document.getElementById('laptopPh');
+        const phonePh    = document.getElementById('phonePh');
+        const laptopMeta = document.getElementById('laptopMeta');
+        const phoneMeta  = document.getElementById('phoneMeta');
+
+        let peer = null;
+        let dataConn = null;
+        let audioCtx = null;
+        let micRecorder = null;
+        let chirpBuf = null;
+        let micStream = null;
+        let phoneIncoming = null;       // { sampleRate, total, received, parts: [] }
+        let lastLaptopRec = null;       // { samples, sampleRate, markers }
+        let lastPhoneRec = null;
+
+        function makeNumericCode() { return ('0000' + Math.floor(Math.random() * 10000)).slice(-4); }
+
+        function tryClaimPeer(attempt) {
+          attempt = attempt || 0;
+          if (attempt > 8) {
+            pairStatus.textContent = 'Could not allocate a session — please refresh.';
+            pairStatus.classList.add('error');
+            return;
+          }
+          const code = makeNumericCode();
+          peer = new Peer('sslab-arange-' + code);
+          let resolved = false;
+          peer.on('open', () => {
+            if (resolved) return;
+            resolved = true;
+            pairCodeEl.textContent = code.split('').join(' ');
+            pairStatus.textContent = 'Waiting for phone…';
+            attachPeerHandlers();
+          });
+          peer.on('error', (err) => {
+            if (resolved) {
+              pairStatus.textContent = 'Connection error: ' + err.message;
+              pairStatus.classList.add('error');
+              return;
+            }
+            if (err.type === 'unavailable-id') {
+              resolved = true;
+              try { peer.destroy(); } catch (_) {}
+              tryClaimPeer(attempt + 1);
+            } else {
+              resolved = true;
+              pairStatus.textContent = 'Pairing error: ' + err.message;
+              pairStatus.classList.add('error');
+            }
+          });
+        }
+
+        function attachPeerHandlers() {
+          peer.on('connection', (conn) => {
+            dataConn = conn;
+            conn.on('open', () => {
+              pairStatus.textContent = 'Phone connected.';
+              pairStatus.classList.remove('error');
+              pairStatus.classList.add('ok');
+              document.body.dataset.paired = '1';
+            });
+            conn.on('data', (msg) => handlePhoneMessage(msg));
+            conn.on('close', () => {
+              dataConn = null;
+              delete document.body.dataset.paired;
+              pairStatus.textContent = 'Phone disconnected.';
+              pairStatus.classList.remove('ok');
+            });
+          });
+        }
+
+        function handlePhoneMessage(msg) {
+          if (!msg || !msg.type) return;
+          if (msg.type === 'rec-start') {
+            phoneIncoming = {
+              sampleRate: msg.sampleRate,
+              total: msg.totalSamples,
+              received: 0,
+              parts: []
+            };
+            runStatus.textContent = 'Phone recording finished. Receiving (' + msg.totalSamples + ' samples)…';
+          } else if (msg.type === 'rec-chunk') {
+            if (!phoneIncoming) return;
+            // msg.data may arrive as ArrayBuffer or as a typed-array view depending on PeerJS version.
+            let i16;
+            const d = msg.data;
+            if (d instanceof Int16Array) {
+              i16 = d;
+            } else if (d instanceof ArrayBuffer) {
+              i16 = new Int16Array(d);
+            } else if (ArrayBuffer.isView(d)) {
+              i16 = new Int16Array(d.buffer, d.byteOffset, d.byteLength / 2);
+            } else {
+              return;
+            }
+            phoneIncoming.parts.push(i16);
+            phoneIncoming.received += i16.length;
+            const pct = Math.round(100 * phoneIncoming.received / phoneIncoming.total);
+            runStatus.textContent = 'Receiving phone audio… ' + pct + '%';
+          } else if (msg.type === 'rec-end') {
+            if (!phoneIncoming) return;
+            const total = phoneIncoming.total;
+            const merged = new Int16Array(total);
+            let off = 0;
+            for (const p of phoneIncoming.parts) {
+              const room = total - off;
+              const take = Math.min(p.length, room);
+              merged.set(p.subarray(0, take), off);
+              off += take;
+            }
+            const f32 = int16ToFloat32(merged);
+            lastPhoneRec = {
+              samples: f32,
+              sampleRate: phoneIncoming.sampleRate,
+              markers: [
+                { t: LAPTOP_CHIRP_AT, color: 'rgba(232,185,35,0.55)', label: 'laptop chirp' },
+                { t: PHONE_CHIRP_AT,  color: 'rgba(42,139,42,0.65)',  label: 'phone chirp' }
+              ]
+            };
+            phoneIncoming = null;
+            renderPhoneRec();
+            runStatus.textContent = 'Done. Showing both recordings.';
+            runBtn.disabled = false;
+          }
+        }
+
+        function renderLaptopRec() {
+          if (!lastLaptopRec) return;
+          laptopPh.style.display = 'none';
+          laptopMeta.textContent = lastLaptopRec.sampleRate + ' Hz · ' + lastLaptopRec.samples.length + ' samples';
+          drawWaveform(laptopWave, lastLaptopRec.samples, lastLaptopRec.sampleRate, lastLaptopRec.markers);
+        }
+        function renderPhoneRec() {
+          if (!lastPhoneRec) return;
+          phonePh.style.display = 'none';
+          phoneMeta.textContent = lastPhoneRec.sampleRate + ' Hz · ' + lastPhoneRec.samples.length + ' samples';
+          drawWaveform(phoneWave, lastPhoneRec.samples, lastPhoneRec.sampleRate, lastPhoneRec.markers);
+        }
+        window.addEventListener('resize', () => {
+          if (lastLaptopRec) renderLaptopRec();
+          if (lastPhoneRec)  renderPhoneRec();
+        });
+
+        async function ensureMic() {
+          if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          if (audioCtx.state === 'suspended') await audioCtx.resume();
+          if (!micStream) {
+            micStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            });
+          }
+          if (!micRecorder) micRecorder = makeMicRecorder(audioCtx, micStream);
+          if (!chirpBuf) chirpBuf = buildChirp(audioCtx);
+        }
+
+        async function runExperiment() {
+          if (!dataConn || !dataConn.open) { runStatus.textContent = 'Phone not connected.'; return; }
+          runBtn.disabled = true;
+          runStatus.textContent = 'Requesting microphone…';
+          try {
+            await ensureMic();
+          } catch (err) {
+            runStatus.textContent = 'Mic permission denied: ' + err.message;
+            runStatus.classList.add('error');
+            runBtn.disabled = false;
+            return;
+          }
+          runStatus.classList.remove('error');
+          phoneIncoming = null;
+          lastLaptopRec = null;
+          lastPhoneRec  = null;
+          laptopPh.style.display = '';
+          phonePh.style.display  = '';
+
+          // Tell phone to begin its run.
+          dataConn.send({ type: 'run', recDuration: REC_DURATION, chirpAt: PHONE_CHIRP_AT, chirpDur: CHIRP_DUR, f0: CHIRP_F0, f1: CHIRP_F1 });
+
+          runStatus.textContent = 'Recording on laptop…';
+          // Schedule laptop chirp at currentTime + LAPTOP_CHIRP_AT.
+          const startT = audioCtx.currentTime;
+          const src = audioCtx.createBufferSource();
+          src.buffer = chirpBuf;
+          src.connect(audioCtx.destination);
+          src.start(startT + LAPTOP_CHIRP_AT);
+
+          // Begin recording immediately.
+          micRecorder.start(REC_DURATION, (samples) => {
+            lastLaptopRec = {
+              samples,
+              sampleRate: audioCtx.sampleRate,
+              markers: [
+                { t: LAPTOP_CHIRP_AT, color: 'rgba(232,185,35,0.55)', label: 'laptop chirp' },
+                { t: PHONE_CHIRP_AT,  color: 'rgba(42,139,42,0.65)',  label: 'phone chirp' }
+              ]
+            };
+            renderLaptopRec();
+            if (!phoneIncoming && !lastPhoneRec) {
+              runStatus.textContent = 'Laptop recorded. Waiting for phone audio…';
+            }
+          });
+        }
+
+        runBtn.addEventListener('click', runExperiment);
+
+        joinCodeIn.addEventListener('input', () => {
+          joinCodeIn.value = joinCodeIn.value.replace(/\D/g, '').slice(0, 4);
+        });
+        joinForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const v = joinCodeIn.value.replace(/\D/g, '').slice(0, 4);
+          if (v.length !== 4) {
+            joinStatus.textContent = 'Enter all 4 digits.';
+            joinStatus.classList.add('error');
+            joinCodeIn.focus();
+            return;
+          }
+          location.href = location.pathname + '?code=' + v;
+        });
+
+        tryClaimPeer();
+
+        // Draw empty backgrounds so the canvases look intentional before first run.
+        const blank = (cv) => {
+          const c = cv.getContext('2d');
+          const dpr = window.devicePixelRatio || 1;
+          const r = cv.getBoundingClientRect();
+          cv.width = Math.round(r.width * dpr);
+          cv.height = Math.round(r.height * dpr);
+          c.fillStyle = '#0c0c0e';
+          c.fillRect(0, 0, cv.width, cv.height);
+        };
+        blank(laptopWave); blank(phoneWave);
+      }
+
+      /* ============ PHONE ============ */
+      function initPhone() {
+        const phoneStatus    = document.getElementById('phoneStatus');
+        const phoneStart     = document.getElementById('phoneStart');
+        const reconnectPanel = document.getElementById('reconnectPanel');
+        const reconnectForm  = document.getElementById('reconnectForm');
+        const reconnectCode  = document.getElementById('reconnectCode');
+
+        function showReconnect() {
+          if (!reconnectPanel) return;
+          reconnectPanel.hidden = false;
+          if (codeParam && !reconnectCode.value) reconnectCode.value = codeParam;
+        }
+        if (reconnectCode) {
+          reconnectCode.addEventListener('input', () => {
+            reconnectCode.value = reconnectCode.value.replace(/\D/g, '').slice(0, 4);
+          });
+        }
+        if (reconnectForm) {
+          reconnectForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const v = reconnectCode.value.replace(/\D/g, '').slice(0, 4);
+            if (v.length !== 4) { reconnectCode.focus(); return; }
+            location.href = location.pathname + '?code=' + v;
+          });
+        }
+
+        let audioCtx = null;
+        let micStream = null;
+        let micRecorder = null;
+        let chirpBuf = null;
+        let conn = null;
+
+        async function handleRun(cmd) {
+          if (!micRecorder) {
+            phoneStatus.textContent = 'Not ready — microphone not initialized.';
+            return;
+          }
+          phoneStatus.textContent = 'Recording…';
+          phoneStatus.classList.remove('error');
+          if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+          const startT = audioCtx.currentTime;
+          // Schedule phone chirp.
+          const src = audioCtx.createBufferSource();
+          src.buffer = chirpBuf;
+          src.connect(audioCtx.destination);
+          src.start(startT + (cmd.chirpAt || PHONE_CHIRP_AT));
+
+          micRecorder.start(cmd.recDuration || REC_DURATION, (samples) => {
+            phoneStatus.textContent = 'Uploading recording…';
+            sendRecording(samples, audioCtx.sampleRate);
+          });
+        }
+
+        function sendRecording(samples, sampleRate) {
+          if (!conn || !conn.open) {
+            phoneStatus.textContent = 'Disconnected — cannot upload.';
+            phoneStatus.classList.add('error');
+            return;
+          }
+          const i16 = float32ToInt16(samples);
+          const total = i16.length;
+          conn.send({ type: 'rec-start', sampleRate, totalSamples: total });
+
+          // PeerJS DataChannel: chunk to keep each send small.
+          const CHUNK_SAMPLES = 16384; // 32 KB per chunk (Int16)
+          let off = 0;
+          const sendNext = () => {
+            if (off >= total) {
+              conn.send({ type: 'rec-end' });
+              phoneStatus.textContent = 'Upload complete. Ready for next run.';
+              phoneStatus.classList.add('ok');
+              return;
+            }
+            const end = Math.min(off + CHUNK_SAMPLES, total);
+            const part = i16.subarray(off, end);
+            // Send as ArrayBuffer; BinaryPack handles it.
+            const ab = part.buffer.slice(part.byteOffset, part.byteOffset + part.byteLength);
+            conn.send({ type: 'rec-chunk', data: ab });
+            off = end;
+            // Yield so PeerJS/SCTP can drain.
+            setTimeout(sendNext, 0);
+          };
+          sendNext();
+        }
+
+        phoneStart.addEventListener('click', async () => {
+          phoneStart.disabled = true;
+          phoneStatus.classList.remove('error');
+          try {
+            phoneStatus.textContent = 'Requesting microphone…';
+            micStream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            });
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+            micRecorder = makeMicRecorder(audioCtx, micStream);
+            chirpBuf = buildChirp(audioCtx);
+
+            phoneStatus.textContent = 'Connecting…';
+            const peer = new Peer();
+            peer.on('open', () => {
+              conn = peer.connect(hostId, { reliable: true });
+              conn.on('open', () => {
+                phoneStatus.textContent = 'Connected. Waiting for laptop to start…';
+                phoneStatus.classList.add('ok');
+              });
+              conn.on('data', (msg) => {
+                if (msg && msg.type === 'run') handleRun(msg);
+              });
+              conn.on('close', () => {
+                phoneStatus.textContent = 'Disconnected.';
+                phoneStatus.classList.remove('ok');
+                showReconnect();
+              });
+              conn.on('error', (err) => {
+                phoneStatus.textContent = 'Connection error: ' + err.message;
+                phoneStatus.classList.add('error');
+                showReconnect();
+              });
+            });
+            peer.on('error', (err) => {
+              if (err.type === 'peer-unavailable') {
+                phoneStatus.textContent = 'Code ' + codeParam + ' not found. Check the code on the laptop.';
+              } else {
+                phoneStatus.textContent = 'Connection error: ' + err.message;
+              }
+              phoneStatus.classList.add('error');
+              phoneStart.disabled = false;
+              showReconnect();
+            });
+
+            if ('wakeLock' in navigator) {
+              navigator.wakeLock.request('screen').catch(() => {});
+            }
+          } catch (err) {
+            phoneStatus.textContent = 'Could not start: ' + err.message;
+            phoneStatus.classList.add('error');
+            phoneStart.disabled = false;
+            showReconnect();
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

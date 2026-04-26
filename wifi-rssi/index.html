@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Wi-Fi RSSI &middot; Sensing School</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XTHNL4559K"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XTHNL4559K');
+    </script>
+    <style>
+      :root {
+        --red: #bc122a;
+        --black: #111;
+        --grey-line: #dee2e6;
+        --grey-text: #5b6068;
+        --bg: #fafafa;
+        --green: #2a8b2a;
+        --gold: #E8B923;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: 'Roboto', Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--black);
+        -webkit-font-smoothing: antialiased;
+      }
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--grey-line);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header a.brand {
+        color: var(--black);
+        text-decoration: none;
+        font-weight: 900;
+        font-size: 18px;
+        letter-spacing: -0.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      header a.brand .red { color: var(--red); }
+      header a.brand svg.logo { width: 28px; height: 28px; flex: 0 0 auto; }
+      header .crumb {
+        color: var(--grey-text);
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px;
+      }
+      h1 {
+        font-weight: 900;
+        font-size: clamp(28px, 4vw, 40px);
+        margin: 0 0 8px;
+        letter-spacing: -0.5px;
+      }
+      p.lead {
+        color: var(--grey-text);
+        margin: 0 0 28px;
+        max-width: 60ch;
+        line-height: 1.5;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid var(--grey-line);
+        border-radius: 12px;
+        padding: 28px;
+        margin-bottom: 18px;
+      }
+      .panel.err { background: #fff7f8; border-color: #f0c0c7; }
+      .panel h3 {
+        margin: 0 0 12px;
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+        font-weight: 700;
+      }
+      .readout {
+        display: flex;
+        align-items: baseline;
+        gap: 10px;
+      }
+      .readout .num {
+        font-weight: 900;
+        font-size: clamp(72px, 14vw, 160px);
+        letter-spacing: -3px;
+        line-height: 0.95;
+      }
+      .readout .unit {
+        font-weight: 700;
+        font-size: 24px;
+        color: var(--grey-text);
+      }
+      .meta {
+        margin-top: 10px;
+        color: var(--grey-text);
+        font-size: 13px;
+        letter-spacing: 0.3px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 16px;
+      }
+      .meta b { color: var(--black); font-weight: 700; }
+      .bar-wrap {
+        margin-top: 22px;
+        height: 18px;
+        background: var(--bg);
+        border: 1px solid var(--grey-line);
+        border-radius: 9px;
+        overflow: hidden;
+      }
+      .bar {
+        height: 100%;
+        width: 0%;
+        background: var(--red);
+        transition: width 0.25s linear, background-color 0.4s;
+      }
+      .scale {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: var(--grey-text);
+        margin-top: 6px;
+        letter-spacing: 0.5px;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+        gap: 1px;
+        background: var(--grey-line);
+        border: 1px solid var(--grey-line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .tile {
+        background: #fff;
+        padding: 14px 16px 12px;
+        min-height: 64px;
+      }
+      .tile .label {
+        font-size: 10px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+        font-weight: 700;
+      }
+      .tile .value {
+        font-size: 22px;
+        font-weight: 900;
+        margin-top: 4px;
+        letter-spacing: -0.5px;
+        line-height: 1.1;
+        word-break: break-all;
+      }
+      .tile .value .small {
+        font-size: 13px;
+        font-weight: 500;
+        color: var(--grey-text);
+        letter-spacing: 0;
+        margin-left: 4px;
+      }
+      .tile .value.dim { color: var(--grey-text); font-weight: 500; font-size: 16px; }
+      svg.spark {
+        width: 100%;
+        height: 240px;
+        display: block;
+      }
+      .legend {
+        font-size: 12px;
+        color: var(--grey-text);
+        margin-top: 8px;
+      }
+      .help { font-size: 14px; color: var(--black); line-height: 1.55; }
+      .help p { margin: 0 0 10px; color: var(--grey-text); }
+      .help ol { margin: 0; padding-left: 22px; }
+      .help li { margin: 6px 0; }
+      .help code {
+        background: #eef0f2;
+        padding: 2px 7px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+      }
+      .download {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--red);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+        font-size: 14px;
+        padding: 10px 18px;
+        border-radius: 8px;
+        letter-spacing: 0.3px;
+        transition: transform 0.1s, box-shadow 0.15s, background 0.15s;
+        margin-top: 4px;
+      }
+      .download:hover {
+        background: #a00f24;
+        box-shadow: 0 4px 14px rgba(188, 18, 42, 0.25);
+        transform: translateY(-1px);
+      }
+      .download svg { width: 14px; height: 14px; }
+      .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin: 14px 0 4px; }
+      .copy-row {
+        display: flex; align-items: center; gap: 8px;
+        background: #0c0c0e;
+        color: #fafafa;
+        padding: 10px 14px;
+        border-radius: 8px;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 13px;
+        overflow-x: auto;
+      }
+      .copy-row button {
+        background: transparent;
+        border: 1px solid #444;
+        color: #fafafa;
+        font-family: inherit;
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        letter-spacing: 0.5px;
+        text-transform: uppercase;
+      }
+      .copy-row button:hover { border-color: #888; }
+      .copy-row code {
+        flex: 1;
+        white-space: nowrap;
+        color: #fafafa;
+        background: transparent;
+        padding: 0;
+        font-size: 13px;
+      }
+      details summary {
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+        color: var(--grey-text);
+        margin-top: 12px;
+      }
+      details summary:hover { color: var(--black); }
+      details p { margin-top: 8px; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="../">
+        <svg class="logo" viewBox="0 0 100 100" aria-hidden="true">
+          <circle cx="50" cy="50" r="46" fill="none" stroke="#bc122a" stroke-width="2" opacity="0.55"/>
+          <circle cx="50" cy="50" r="36" fill="none" stroke="#bc122a" stroke-width="2.5" opacity="0.7"/>
+          <circle cx="50" cy="50" r="26" fill="none" stroke="#bc122a" stroke-width="3"/>
+          <circle cx="50" cy="50" r="14" fill="none" stroke="#bc122a" stroke-width="3.5"/>
+          <circle cx="50" cy="50" r="6"  fill="#bc122a"/>
+        </svg>
+        <span><span>SENSING</span> <span class="red">SCHOOL</span></span>
+      </a>
+      <span class="crumb">Wi-Fi RSSI</span>
+    </header>
+    <main>
+      <h1>Wi-Fi signal strength</h1>
+      <p class="lead">This page reads the laptop's current Wi-Fi link metrics &mdash; RSSI, noise floor, channel, modulation, MCS index &mdash; directly from the operating system. Connect the laptop to your phone's hotspot, then move the phone around and watch every metric track the radio link in real time.</p>
+
+      <div class="panel help">
+        <h3>How to run</h3>
+        <ol>
+          <li>Turn on your phone's <b>personal hotspot</b> and connect this laptop to it.</li>
+          <li>Download the helper script and place it in a folder of your choice.</li>
+          <li>In a terminal, <code>cd</code> into that folder and run <code>python3 helper.py</code>.</li>
+          <li>Open <code>http://localhost:8765</code> in your browser. (If you're already there, refresh.)</li>
+          <li>Walk the phone around the room and watch the dBm value (and TX rate) change.</li>
+        </ol>
+        <div class="actions">
+          <a class="download" href="helper.py" download="helper.py">
+            <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 1.5a.5.5 0 0 1 .5.5v7.293l2.146-2.147a.5.5 0 0 1 .708.708l-3 3a.5.5 0 0 1-.708 0l-3-3a.5.5 0 1 1 .708-.708L7.5 9.293V2a.5.5 0 0 1 .5-.5zM2.5 13a.5.5 0 0 1 .5.5V14h10v-.5a.5.5 0 0 1 1 0V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1v-.5a.5.5 0 0 1 .5-.5z"/>
+            </svg>
+            Download helper.py
+          </a>
+          <div class="copy-row" style="flex: 1; min-width: 260px;">
+            <code id="install-cmd">pip install pyobjc-framework-CoreWLAN &amp;&amp; python3 helper.py</code>
+            <button id="copy-btn" type="button">Copy</button>
+          </div>
+        </div>
+        <details>
+          <summary>Per-platform notes</summary>
+          <p><b>macOS</b>: install <code>pyobjc-framework-CoreWLAN</code> for ~4 Hz updates. Without it, the helper falls back to <code>system_profiler</code>, which works but updates only every ~8 s. SSID and BSSID are hidden by default unless you grant Terminal Location Services permission.</p>
+          <p><b>Linux</b>: the helper uses <code>iw dev &lt;iface&gt; link</code>. No extra setup.</p>
+          <p><b>Windows</b>: the helper uses <code>netsh wlan show interfaces</code>. Signal is reported as a percentage and converted to a dBm estimate (<code>&minus;100 + pct/2</code>).</p>
+        </details>
+      </div>
+
+      <div class="panel" id="panel">
+        <div class="readout">
+          <div class="num" id="rssi">&mdash;</div>
+          <div class="unit">dBm</div>
+        </div>
+        <div class="meta">
+          <span>SSID: <b id="ssid">&mdash;</b></span>
+          <span>Source: <b id="source">&mdash;</b></span>
+          <span>Updated: <b id="age">waiting&hellip;</b></span>
+        </div>
+        <div class="bar-wrap"><div class="bar" id="bar"></div></div>
+        <div class="scale"><span>&minus;100 dBm (weak)</span><span>&minus;30 dBm (strong)</span></div>
+      </div>
+
+      <div class="panel">
+        <h3>Link details</h3>
+        <div class="grid">
+          <div class="tile"><div class="label">Noise floor</div><div class="value" id="t-noise">&mdash;</div></div>
+          <div class="tile"><div class="label">SNR</div><div class="value" id="t-snr">&mdash;</div></div>
+          <div class="tile"><div class="label">TX rate</div><div class="value" id="t-rate">&mdash;</div></div>
+          <div class="tile"><div class="label">MCS index</div><div class="value" id="t-mcs">&mdash;</div></div>
+          <div class="tile"><div class="label">Spatial streams</div><div class="value" id="t-nss">&mdash;</div></div>
+          <div class="tile"><div class="label">PHY mode</div><div class="value" id="t-phy">&mdash;</div></div>
+          <div class="tile"><div class="label">Channel</div><div class="value" id="t-channel">&mdash;</div></div>
+          <div class="tile"><div class="label">Band</div><div class="value" id="t-band">&mdash;</div></div>
+          <div class="tile"><div class="label">Width</div><div class="value" id="t-width">&mdash;</div></div>
+          <div class="tile"><div class="label">Security</div><div class="value" id="t-sec">&mdash;</div></div>
+          <div class="tile"><div class="label">BSSID</div><div class="value" id="t-bssid">&mdash;</div></div>
+          <div class="tile"><div class="label">SSID</div><div class="value" id="t-ssid">&mdash;</div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>RSSI &middot; last 60 seconds</h3>
+        <svg class="spark" id="spark" viewBox="0 0 1000 240" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="legend">Higher (less negative) is stronger signal. Green &ge; &minus;55 dBm, yellow &ge; &minus;70 dBm, red below.</div>
+      </div>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const $rssi   = $('rssi');
+      const $ssid   = $('ssid');
+      const $source = $('source');
+      const $age    = $('age');
+      const $bar    = $('bar');
+      const $panel  = $('panel');
+      const $spark  = $('spark');
+
+      const TILES = {
+        noise:    { el: $('t-noise'),    fmt: v => v == null ? '—' : `${v}<span class="small">dBm</span>` },
+        snr:      { el: $('t-snr'),      fmt: v => v == null ? '—' : `${v}<span class="small">dB</span>` },
+        rate:     { el: $('t-rate'),     fmt: v => v == null ? '—' : `${formatRate(v)}<span class="small">Mbps</span>` },
+        mcs:      { el: $('t-mcs'),      fmt: v => v == null ? '<span class="value dim">—</span>' : v },
+        nss:      { el: $('t-nss'),      fmt: v => v == null ? '<span class="value dim">—</span>' : `${v}<span class="small">×</span>` },
+        phy:      { el: $('t-phy'),      fmt: v => v ? v : '—' },
+        channel:  { el: $('t-channel'),  fmt: v => v == null ? '—' : v },
+        band:     { el: $('t-band'),     fmt: v => v ? v : '—' },
+        width:    { el: $('t-width'),    fmt: v => v == null ? '—' : `${v}<span class="small">MHz</span>` },
+        sec:      { el: $('t-sec'),      fmt: v => v ? v : '—' },
+        bssid:    { el: $('t-bssid'),    fmt: v => v ? `<span style="font-size:14px">${v}</span>` : '<span class="value dim">hidden</span>' },
+        ssid:     { el: $('t-ssid'),     fmt: v => v ? v : '<span class="value dim">hidden</span>' },
+      };
+
+      function formatRate(v) {
+        if (v >= 1000) return (v / 1000).toFixed(2) + ' G';
+        if (v >= 100)  return Math.round(v);
+        return v.toFixed(1);
+      }
+
+      const RSSI_MIN = -100, RSSI_MAX = -30;
+      const W = 1000, H = 240, PAD_X = 8, PAD_Y = 14;
+      const WINDOW_MS = 60_000;
+      const samples = [];
+      let lastTs = null;
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+
+      function clamp01(x) { return Math.max(0, Math.min(1, x)); }
+      function pctFromRssi(r) {
+        if (r === null || r === undefined) return 0;
+        return clamp01((r - RSSI_MIN) / (RSSI_MAX - RSSI_MIN));
+      }
+      function colorFromRssi(r) {
+        if (r === null || r === undefined) return 'var(--red)';
+        if (r >= -55) return '#2a8b2a';
+        if (r >= -70) return '#E8B923';
+        return '#bc122a';
+      }
+      function formatAge(ts) {
+        if (!ts) return '—';
+        const dt = (Date.now()/1000 - ts);
+        if (dt < 1.2) return 'just now';
+        if (dt < 60) return Math.round(dt) + 's ago';
+        return Math.round(dt/60) + 'm ago';
+      }
+
+      function setTile(key, val) {
+        const t = TILES[key];
+        if (!t) return;
+        t.el.innerHTML = t.fmt(val);
+      }
+
+      function render(state) {
+        if (state.error || state.rssi === null || state.rssi === undefined) {
+          $rssi.textContent = '—';
+          $ssid.textContent = '—';
+          $source.textContent = state.source || '—';
+          $age.textContent = state.error || 'waiting…';
+          $bar.style.width = '0%';
+          $panel.classList.add('err');
+          return;
+        }
+        $panel.classList.remove('err');
+        $rssi.textContent = state.rssi;
+        $ssid.textContent = state.ssid || '(hidden)';
+        $source.textContent = state.source || '—';
+        lastTs = state.ts;
+        $age.textContent = formatAge(state.ts);
+
+        const pct = pctFromRssi(state.rssi);
+        $bar.style.width = (pct * 100).toFixed(1) + '%';
+        $bar.style.background = colorFromRssi(state.rssi);
+
+        setTile('noise',   state.noise);
+        setTile('snr',     state.snr);
+        setTile('rate',    state.tx_rate_mbps);
+        setTile('mcs',     state.mcs);
+        setTile('nss',     state.nss);
+        setTile('phy',     state.phy);
+        setTile('channel', state.channel);
+        setTile('band',    state.band);
+        setTile('width',   state.width_mhz);
+        setTile('sec',     state.security);
+        setTile('bssid',   state.bssid);
+        setTile('ssid',    state.ssid);
+
+        samples.push({ t: Date.now(), rssi: state.rssi });
+        const cutoff = Date.now() - WINDOW_MS;
+        while (samples.length && samples[0].t < cutoff) samples.shift();
+        drawSpark();
+      }
+
+      function drawSpark() {
+        while ($spark.firstChild) $spark.removeChild($spark.firstChild);
+        const t1 = Date.now(), t0 = t1 - WINDOW_MS;
+        const xs = t => PAD_X + (W - 2*PAD_X) * (t - t0) / (t1 - t0);
+        const ys = r => PAD_Y + (H - 2*PAD_Y) * (1 - pctFromRssi(r));
+
+        for (const v of [-30, -50, -70, -90]) {
+          const y = ys(v);
+          const line = document.createElementNS(SVG_NS, 'line');
+          line.setAttribute('x1', 0);
+          line.setAttribute('x2', W);
+          line.setAttribute('y1', y.toFixed(1));
+          line.setAttribute('y2', y.toFixed(1));
+          line.setAttribute('stroke', '#dee2e6');
+          line.setAttribute('stroke-width', '1');
+          $spark.appendChild(line);
+          const t = document.createElementNS(SVG_NS, 'text');
+          t.setAttribute('x', '6');
+          t.setAttribute('y', (y - 4).toFixed(1));
+          t.setAttribute('font-size', '10');
+          t.setAttribute('fill', '#5b6068');
+          t.textContent = v + ' dBm';
+          $spark.appendChild(t);
+        }
+
+        if (samples.length < 2) return;
+        const last = samples[samples.length - 1];
+        const stroke = colorFromRssi(last.rssi);
+
+        let d = '';
+        for (let i = 0; i < samples.length; i++) {
+          const s = samples[i];
+          d += (i === 0 ? 'M ' : 'L ') + xs(s.t).toFixed(1) + ' ' + ys(s.rssi).toFixed(1) + ' ';
+        }
+        const path = document.createElementNS(SVG_NS, 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', stroke);
+        path.setAttribute('stroke-width', '2');
+        path.setAttribute('stroke-linejoin', 'round');
+        $spark.appendChild(path);
+
+        const dot = document.createElementNS(SVG_NS, 'circle');
+        dot.setAttribute('cx', xs(last.t).toFixed(1));
+        dot.setAttribute('cy', ys(last.rssi).toFixed(1));
+        dot.setAttribute('r', '4');
+        dot.setAttribute('fill', stroke);
+        $spark.appendChild(dot);
+      }
+
+      function connect() {
+        const url = (location.protocol === 'http:' || location.protocol === 'https:')
+          ? '/rssi'
+          : 'http://localhost:8765/rssi';
+        const es = new EventSource(url);
+        es.onmessage = (ev) => {
+          try { render(JSON.parse(ev.data)); } catch (e) {}
+        };
+        es.onerror = () => {
+          $age.textContent = 'helper.py not running — see instructions above';
+          $panel.classList.add('err');
+        };
+      }
+      connect();
+
+      setInterval(() => {
+        if (lastTs) $age.textContent = formatAge(lastTs);
+        drawSpark();
+      }, 1000);
+
+      document.getElementById('copy-btn').addEventListener('click', async () => {
+        const text = document.getElementById('install-cmd').textContent;
+        try {
+          await navigator.clipboard.writeText(text);
+          const btn = document.getElementById('copy-btn');
+          btn.textContent = 'Copied';
+          setTimeout(() => { btn.textContent = 'Copy'; }, 1200);
+        } catch (e) {}
+      });
+    </script>
+  </body>
+</html>

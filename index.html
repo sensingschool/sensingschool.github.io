@@ -406,6 +406,91 @@
             <span class="arrow">Open</span>
           </div>
         </a>
+        <a class="card-link" href="wifi-rssi/">
+          <div class="cover" aria-hidden="true">
+            <svg viewBox="0 0 200 100" preserveAspectRatio="none">
+              <g stroke="rgba(255,255,255,0.08)" stroke-width="0.5">
+                <line x1="40"  y1="0" x2="40"  y2="100"/>
+                <line x1="80"  y1="0" x2="80"  y2="100"/>
+                <line x1="120" y1="0" x2="120" y2="100"/>
+                <line x1="160" y1="0" x2="160" y2="100"/>
+              </g>
+              <!-- phone with hotspot arcs -->
+              <g transform="translate(28 18)">
+                <rect x="0" y="0" width="32" height="64" rx="5" fill="none" stroke="#bc122a" stroke-width="1.6"/>
+                <circle cx="16" cy="58" r="1.6" fill="#bc122a"/>
+                <g fill="none" stroke="#bc122a" stroke-width="1.2" stroke-linecap="round">
+                  <path d="M 10 30 Q 16 24 22 30"/>
+                  <path d="M 7 33 Q 16 19 25 33"/>
+                  <path d="M 4 36 Q 16 14 28 36"/>
+                  <circle cx="16" cy="38" r="1.6" fill="#bc122a" stroke="none"/>
+                </g>
+              </g>
+              <!-- laptop -->
+              <g transform="translate(118 22)">
+                <rect x="0" y="0" width="60" height="38" rx="3" fill="none" stroke="#bc122a" stroke-width="1.6"/>
+                <rect x="-4" y="38" width="68" height="4" rx="1.5" fill="#bc122a"/>
+                <!-- RSSI sparkline trace inside the screen -->
+                <path d="M 6 28 L 14 22 L 22 26 L 30 16 L 38 22 L 46 12 L 54 18"
+                      fill="none" stroke="#bc122a" stroke-width="1.4" stroke-linejoin="round"/>
+                <text x="30" y="9" text-anchor="middle" font-family="Roboto, Helvetica, Arial, sans-serif"
+                      font-size="6" font-weight="900" fill="#bc122a" letter-spacing="0.5">dBm</text>
+              </g>
+              <!-- wireless arc between -->
+              <g fill="none" stroke="#bc122a" stroke-width="1.2" stroke-linecap="round" opacity="0.7">
+                <path d="M 70 50 Q 88 30 104 50"/>
+                <path d="M 76 56 Q 88 42 98 56"/>
+                <path d="M 82 62 Q 88 54 92 62"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h2>Wi-Fi RSSI</h2>
+            <p>Connect this laptop to your phone's hotspot, run the local helper, and watch the radio signal track in real time as you move the phone.</p>
+            <span class="arrow">Open</span>
+          </div>
+        </a>
+        <a class="card-link" href="acoustic-ranging/">
+          <div class="cover" aria-hidden="true">
+            <svg viewBox="0 0 200 100" preserveAspectRatio="none">
+              <g stroke="rgba(255,255,255,0.08)" stroke-width="0.5">
+                <line x1="40"  y1="0" x2="40"  y2="100"/>
+                <line x1="80"  y1="0" x2="80"  y2="100"/>
+                <line x1="120" y1="0" x2="120" y2="100"/>
+                <line x1="160" y1="0" x2="160" y2="100"/>
+              </g>
+              <!-- laptop on left emitting chirp arcs -->
+              <g transform="translate(14 30)">
+                <rect x="0" y="0" width="48" height="30" rx="3" fill="none" stroke="#bc122a" stroke-width="1.6"/>
+                <rect x="-4" y="30" width="56" height="3" rx="1.2" fill="#bc122a"/>
+              </g>
+              <g fill="none" stroke="#bc122a" stroke-width="1.2" stroke-linecap="round" opacity="0.85">
+                <path d="M 66 50 Q 76 38 86 50"/>
+                <path d="M 66 50 Q 80 32 94 50"/>
+                <path d="M 66 50 Q 84 26 102 50"/>
+              </g>
+              <!-- phone on right emitting chirp arcs -->
+              <g transform="translate(160 22)">
+                <rect x="0" y="0" width="26" height="56" rx="4" fill="none" stroke="#bc122a" stroke-width="1.6"/>
+                <circle cx="13" cy="50" r="1.4" fill="#bc122a"/>
+              </g>
+              <g fill="none" stroke="#bc122a" stroke-width="1.2" stroke-linecap="round" opacity="0.85">
+                <path d="M 158 50 Q 148 38 138 50"/>
+                <path d="M 158 50 Q 144 32 130 50"/>
+                <path d="M 158 50 Q 140 26 122 50"/>
+              </g>
+              <!-- chirp waveform sketch in the middle -->
+              <g fill="none" stroke="rgba(232,185,35,0.85)" stroke-width="1.3" stroke-linejoin="round">
+                <path d="M 104 64 L 106 56 L 108 72 L 110 50 L 112 76 L 114 46 L 117 78 L 120 44"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <h2>Acoustic Ranging</h2>
+            <p>Pair your phone, then both devices record while the laptop and phone each emit a 200 ms 1&ndash;4 kHz chirp two seconds apart.</p>
+            <span class="arrow">Open</span>
+          </div>
+        </a>
       </section>
       <footer class="attribution">
         Created by
