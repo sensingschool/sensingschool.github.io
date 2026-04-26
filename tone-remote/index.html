@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tone &amp; Spectrum · Remote · Sensing School</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <script src="https://unpkg.com/peerjs@1/dist/peerjs.min.js"></script>
+    <style>
+      :root {
+        --red: #bc122a;
+        --black: #111;
+        --grey-line: #dee2e6;
+        --grey-text: #5b6068;
+        --bg: #fafafa;
+        --green: #2a8b2a;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: 'Roboto', Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--black);
+        -webkit-font-smoothing: antialiased;
+      }
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--grey-line);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header a.brand {
+        color: var(--black);
+        text-decoration: none;
+        font-weight: 900;
+        font-size: 18px;
+        letter-spacing: -0.5px;
+      }
+      header a.brand .red { color: var(--red); }
+      header .crumb {
+        color: var(--grey-text);
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+      }
+      main {
+        max-width: 960px;
+        margin: 0 auto;
+        padding: 32px;
+      }
+      h1 {
+        font-weight: 900;
+        font-size: clamp(28px, 4vw, 40px);
+        margin: 0 0 8px;
+        letter-spacing: -0.5px;
+      }
+      p.lead {
+        color: var(--grey-text);
+        margin: 0 0 32px;
+        max-width: 60ch;
+        line-height: 1.5;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid var(--grey-line);
+        border-radius: 10px;
+        padding: 24px;
+        margin-bottom: 20px;
+      }
+      .panel h2 {
+        margin: 0 0 16px;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+      .row:last-child { margin-bottom: 0; }
+      label {
+        font-size: 12px;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+        font-weight: 500;
+        min-width: 70px;
+      }
+      .freq-display {
+        font-variant-numeric: tabular-nums;
+        font-weight: 700;
+        font-size: 28px;
+        min-width: 130px;
+        letter-spacing: -0.5px;
+      }
+      input[type="range"] {
+        flex: 1 1 200px;
+        min-width: 200px;
+      }
+      button {
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+        padding: 10px 22px;
+        border: 1px solid var(--black);
+        background: var(--black);
+        color: #fff;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: opacity 0.15s, background 0.15s;
+      }
+      button:hover:not(:disabled) { opacity: 0.85; }
+      button:disabled { opacity: 0.4; cursor: not-allowed; }
+      button.secondary { background: #fff; color: var(--black); }
+      button.danger { background: var(--red); border-color: var(--red); }
+      button.big {
+        font-size: 16px;
+        padding: 16px 36px;
+      }
+      select {
+        font-family: inherit;
+        font-size: 13px;
+        font-weight: 500;
+        padding: 7px 10px;
+        border: 1px solid var(--grey-line);
+        background: #fff;
+        color: var(--black);
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .canvas-wrap {
+        position: relative;
+        background: #0c0c0e;
+        border-radius: 6px;
+        overflow: hidden;
+        aspect-ratio: 16 / 6;
+      }
+      canvas { width: 100%; height: 100%; display: block; }
+      .canvas-wrap .placeholder {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: rgba(255,255,255,0.5);
+        font-size: 13px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        pointer-events: none;
+      }
+      .status { font-size: 13px; color: var(--grey-text); margin: 0; }
+      .status.error { color: var(--red); }
+      .status.ok { color: var(--green); font-weight: 500; }
+      .note {
+        font-size: 12px;
+        color: var(--grey-text);
+        margin-top: 16px;
+        line-height: 1.5;
+      }
+      .kbd {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        padding: 2px 6px;
+        margin-left: 6px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        vertical-align: 1px;
+      }
+      button.secondary .kbd,
+      button:not(.danger) .kbd {
+        background: rgba(0, 0, 0, 0.06);
+        border-color: rgba(0, 0, 0, 0.15);
+        color: var(--grey-text);
+      }
+      .pair-content {
+        display: flex;
+        gap: 24px;
+        flex-wrap: wrap;
+        align-items: flex-start;
+      }
+      .qr-wrap {
+        flex: 0 0 auto;
+        padding: 12px;
+        border: 1px solid var(--grey-line);
+        border-radius: 8px;
+        background: #fff;
+      }
+      .qr-wrap img {
+        display: block;
+        width: 240px;
+        height: 240px;
+      }
+      .pair-info {
+        flex: 1 1 280px;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      .pair-info input[type="text"] {
+        width: 100%;
+        font-family: ui-monospace, Menlo, Consolas, monospace;
+        font-size: 12px;
+        padding: 8px 10px;
+        border: 1px solid var(--grey-line);
+        border-radius: 5px;
+        background: #f5f5f5;
+        color: var(--black);
+      }
+      .pair-help {
+        color: var(--grey-text);
+        font-size: 13px;
+        margin: 0;
+        line-height: 1.5;
+      }
+      .freq-big {
+        font-size: clamp(48px, 14vw, 80px);
+        font-weight: 900;
+        letter-spacing: -2px;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+        margin: 0 0 8px;
+      }
+      body[data-role="laptop"] .phone-only { display: none; }
+      body[data-role="phone"] .laptop-only { display: none; }
+      body:not([data-role]) .laptop-only,
+      body:not([data-role]) .phone-only { display: none; }
+      body[data-role="laptop"]:not([data-paired]) .needs-phone {
+        opacity: 0.45;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a class="brand" href="../"><span>SENSING</span> <span class="red">SCHOOL</span></a>
+      <span class="crumb">Tone &amp; Spectrum · Remote</span>
+    </header>
+    <main>
+      <!-- LAPTOP ROLE -->
+      <div class="laptop-only">
+        <h1>Tone &amp; Spectrum (Remote)</h1>
+        <p class="lead">Pair a phone to use as the speaker and microphone. The phone synthesizes the tone locally; its mic stream is sent here over WebRTC and rendered as a live spectrum.</p>
+
+        <section class="panel">
+          <h2>Pair your phone</h2>
+          <div class="pair-content">
+            <div class="qr-wrap">
+              <img id="qr" alt="Pairing QR code" />
+            </div>
+            <div class="pair-info">
+              <p class="status" id="pairStatus">Generating session&hellip;</p>
+              <p class="pair-help">Scan with your phone's camera, or open this URL on your phone:</p>
+              <input type="text" id="pairUrl" readonly />
+              <div>
+                <button id="copyUrl" class="secondary">Copy link</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel needs-phone">
+          <h2>Tone (synthesized on phone)</h2>
+          <div class="row">
+            <span class="freq-display" id="freqDisplay">440 Hz</span>
+            <input type="range" id="freqSlider" min="0" max="1" step="0.0001" value="0.5" aria-label="Frequency" />
+          </div>
+          <div class="row">
+            <label for="gainSlider">Volume</label>
+            <input type="range" id="gainSlider" min="0" max="0.5" step="0.001" value="0.08" />
+            <button id="toneBtn">Play <span class="kbd">Space</span></button>
+          </div>
+        </section>
+
+        <section class="panel needs-phone">
+          <h2>Microphone Spectrum (from phone)</h2>
+          <div class="canvas-wrap">
+            <canvas id="spectrum"></canvas>
+            <div class="placeholder" id="placeholder">Waiting for phone&hellip;</div>
+          </div>
+          <div class="row" style="margin-top: 16px;">
+            <label for="fftSize">FFT size</label>
+            <select id="fftSize">
+              <option value="1024">1024</option>
+              <option value="2048">2048</option>
+              <option value="4096" selected>4096</option>
+              <option value="8192">8192</option>
+              <option value="16384">16384</option>
+              <option value="32768">32768</option>
+            </select>
+            <label for="zoom" style="margin-left: 12px;">View</label>
+            <select id="zoom">
+              <option value="full" selected>Full range</option>
+              <option value="0.5">Zoom: ±0.5 oct around tone</option>
+              <option value="1">Zoom: ±1 oct around tone</option>
+              <option value="2">Zoom: ±2 oct around tone</option>
+              <option value="3">Zoom: ±3 oct around tone</option>
+            </select>
+            <span class="status" id="resolution">&#8776; 11.72 Hz/bin</span>
+          </div>
+          <p class="note">Audio travels via WebRTC (Opus codec). Expect bandwidth roll-off above ~16 kHz and some quantization artifacts versus a direct mic feed.</p>
+        </section>
+      </div>
+
+      <!-- PHONE ROLE -->
+      <div class="phone-only">
+        <h1>Sensor Mode</h1>
+        <p class="lead">This phone is the speaker and microphone. Your laptop displays the spectrum and controls the tone.</p>
+
+        <section class="panel">
+          <h2>Status</h2>
+          <p class="status" id="phoneStatus">Tap Start to enable mic and connect.</p>
+          <div class="row" style="margin-top: 16px;">
+            <button id="phoneStart" class="big">Start</button>
+          </div>
+          <p class="note">Keep this page open and the screen on. Use headphones if you want to avoid hearing the tone over the mic.</p>
+        </section>
+
+        <section class="panel" id="phoneNowPlaying" hidden>
+          <h2>Now Playing</h2>
+          <p class="freq-big" id="phoneFreq">&mdash;</p>
+          <p class="status" id="phoneToneStatus">No tone.</p>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const params = new URLSearchParams(location.search);
+      const hostId = params.get('host');
+      const role = hostId ? 'phone' : 'laptop';
+      document.body.dataset.role = role;
+
+      const PUBLIC_ORIGIN = 'https://sensingschool.com';
+      const LOCAL_BASE = '/sensingschool';
+      const isLocal =
+        ['localhost', '127.0.0.1', ''].includes(location.hostname) ||
+        location.hostname.startsWith('192.168.') ||
+        location.hostname.startsWith('10.') ||
+        location.protocol === 'file:';
+      const PAIR_ORIGIN = isLocal ? PUBLIC_ORIGIN : location.origin;
+      function publicPath() {
+        let p = location.pathname;
+        if (isLocal && p.startsWith(LOCAL_BASE + '/')) p = p.slice(LOCAL_BASE.length);
+        return p;
+      }
+
+      const FMIN = 20, FMAX = 20000;
+      const sliderToFreq = t => FMIN * Math.pow(FMAX / FMIN, t);
+      const freqToSlider = f => Math.log(f / FMIN) / Math.log(FMAX / FMIN);
+      const fmtFreq = f => f >= 1000 ? (f / 1000).toFixed(2) + ' kHz' : f.toFixed(0) + ' Hz';
+      const makeId = () => 'sslab-' + Math.random().toString(36).slice(2, 10);
+
+      if (role === 'laptop') initLaptop(); else initPhone();
+
+      /* ============ LAPTOP ============ */
+      function initLaptop() {
+        const qrImg       = document.getElementById('qr');
+        const pairUrlEl   = document.getElementById('pairUrl');
+        const pairStatus  = document.getElementById('pairStatus');
+        const copyUrlBtn  = document.getElementById('copyUrl');
+        const freqSlider  = document.getElementById('freqSlider');
+        const freqDisplay = document.getElementById('freqDisplay');
+        const gainSlider  = document.getElementById('gainSlider');
+        const toneBtn     = document.getElementById('toneBtn');
+        const fftSel      = document.getElementById('fftSize');
+        const zoomSel     = document.getElementById('zoom');
+        const resEl       = document.getElementById('resolution');
+        const placeholder = document.getElementById('placeholder');
+        const canvas      = document.getElementById('spectrum');
+        const ctx         = canvas.getContext('2d');
+
+        freqSlider.value = freqToSlider(440);
+
+        let dataConn = null;
+        let toneOn = false;
+        let audioCtx = null;
+        let analyser = null;
+        let dataBuf = null;
+        let drawing = false;
+        let keepalive = null;
+
+        const peer = new Peer(makeId());
+
+        peer.on('open', (id) => {
+          const url = PAIR_ORIGIN + publicPath() + '?host=' + id;
+          pairUrlEl.value = url;
+          qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(url);
+          pairStatus.textContent = 'Waiting for phone…';
+        });
+        peer.on('error', (err) => {
+          pairStatus.textContent = 'Pairing error: ' + err.message;
+          pairStatus.classList.add('error');
+        });
+
+        peer.on('connection', (conn) => {
+          dataConn = conn;
+          conn.on('open', () => {
+            pairStatus.textContent = 'Phone connected.';
+            pairStatus.classList.remove('error');
+            pairStatus.classList.add('ok');
+            document.body.dataset.paired = '1';
+            sendTone();
+          });
+          conn.on('close', () => {
+            dataConn = null;
+            delete document.body.dataset.paired;
+            pairStatus.textContent = 'Phone disconnected.';
+            pairStatus.classList.remove('ok');
+          });
+        });
+
+        peer.on('call', (call) => {
+          call.answer();
+          call.on('stream', (remoteStream) => {
+            keepalive = new Audio();
+            keepalive.srcObject = remoteStream;
+            keepalive.muted = true;
+            keepalive.play().catch(() => {});
+
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const src = audioCtx.createMediaStreamSource(remoteStream);
+            analyser = audioCtx.createAnalyser();
+            analyser.fftSize = parseInt(fftSel.value, 10);
+            analyser.smoothingTimeConstant = 0.5;
+            analyser.minDecibels = -130;
+            analyser.maxDecibels = -10;
+            src.connect(analyser);
+            dataBuf = new Float32Array(analyser.frequencyBinCount);
+            updateResolution();
+            placeholder.style.display = 'none';
+            if (!drawing) { drawing = true; requestAnimationFrame(draw); }
+          });
+        });
+
+        const onLaptopGesture = () => {
+          if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+        };
+        ['click', 'keydown', 'touchstart'].forEach(ev => document.addEventListener(ev, onLaptopGesture));
+
+        const currentFreq = () => sliderToFreq(parseFloat(freqSlider.value));
+        const updateFreqDisplay = () => { freqDisplay.textContent = fmtFreq(currentFreq()); };
+
+        function sendTone() {
+          if (!dataConn || !dataConn.open) return;
+          dataConn.send({
+            type: 'tone',
+            play: toneOn,
+            freq: currentFreq(),
+            gain: parseFloat(gainSlider.value)
+          });
+        }
+
+        freqSlider.addEventListener('input', () => {
+          updateFreqDisplay();
+          sendTone();
+        });
+        gainSlider.addEventListener('input', sendTone);
+
+        function setToneBtn() {
+          toneBtn.innerHTML = (toneOn ? 'Stop' : 'Play') + ' <span class="kbd">Space</span>';
+          toneBtn.classList.toggle('danger', toneOn);
+        }
+        function toggleTone() {
+          toneOn = !toneOn;
+          setToneBtn();
+          sendTone();
+        }
+        toneBtn.addEventListener('click', toggleTone);
+
+        document.addEventListener('keydown', (e) => {
+          if (e.code !== 'Space' || e.repeat) return;
+          const t = e.target;
+          if (t && (t.tagName === 'INPUT' && t.type === 'text' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+          e.preventDefault();
+          toggleTone();
+        });
+
+        copyUrlBtn.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(pairUrlEl.value);
+            copyUrlBtn.textContent = 'Copied';
+            setTimeout(() => { copyUrlBtn.textContent = 'Copy link'; }, 1500);
+          } catch (e) {
+            pairUrlEl.select();
+          }
+        });
+
+        function updateResolution() {
+          const size = parseInt(fftSel.value, 10);
+          const sr = audioCtx ? audioCtx.sampleRate : 48000;
+          resEl.textContent = '≈ ' + (sr / size).toFixed(2) + ' Hz/bin · ' + (size / 2) + ' bins';
+        }
+        fftSel.addEventListener('change', () => {
+          const size = parseInt(fftSel.value, 10);
+          if (analyser) {
+            analyser.fftSize = size;
+            dataBuf = new Float32Array(analyser.frequencyBinCount);
+          }
+          updateResolution();
+        });
+
+        function draw() {
+          if (!drawing || !analyser) return;
+          const rect = canvas.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          const w = Math.round(rect.width * dpr);
+          const h = Math.round(rect.height * dpr);
+          if (canvas.width !== w || canvas.height !== h) {
+            canvas.width = w;
+            canvas.height = h;
+          }
+
+          analyser.getFloatFrequencyData(dataBuf);
+          const bins = dataBuf.length;
+          const fNyq = audioCtx.sampleRate / 2;
+          let fLo = FMIN;
+          let fHi = Math.min(FMAX, fNyq);
+          const zoomVal = zoomSel.value;
+          if (zoomVal !== 'full') {
+            const oct = parseFloat(zoomVal);
+            const f = currentFreq();
+            fLo = Math.max(FMIN, f / Math.pow(2, oct));
+            fHi = Math.min(fNyq, f * Math.pow(2, oct));
+          }
+          const xToFreq = x => fLo * Math.pow(fHi / fLo, x);
+          const freqToX = f => Math.log(f / fLo) / Math.log(fHi / fLo);
+          const dbMin = -130, dbMax = -10;
+          const yFromDb = db => h - Math.max(0, Math.min(1, (db - dbMin) / (dbMax - dbMin))) * h;
+
+          ctx.fillStyle = '#0c0c0e';
+          ctx.fillRect(0, 0, w, h);
+
+          ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+          ctx.lineWidth = 1 * dpr;
+          ctx.fillStyle = 'rgba(255,255,255,0.4)';
+          ctx.font = (11 * dpr) + 'px Roboto, sans-serif';
+          const span = Math.log10(fHi / fLo);
+          let mults;
+          if      (span >= 1)   mults = [1, 2, 5];
+          else if (span >= 0.4) mults = [1, 1.5, 2, 3, 5, 7];
+          else                  mults = [1, 1.2, 1.5, 1.8, 2, 2.5, 3, 4, 5, 6, 7, 8, 9];
+          const dMin = Math.floor(Math.log10(fLo));
+          const dMax = Math.ceil(Math.log10(fHi));
+          for (let d = dMin; d <= dMax; d++) {
+            for (const m of mults) {
+              const f = m * Math.pow(10, d);
+              if (f < fLo || f > fHi) continue;
+              const x = freqToX(f) * w;
+              ctx.beginPath();
+              ctx.moveTo(x, 0);
+              ctx.lineTo(x, h);
+              ctx.stroke();
+              const lbl = f >= 1000 ? (+(f / 1000).toFixed(1)) + 'k' : Math.round(f) + '';
+              ctx.fillText(lbl, x + 3 * dpr, h - 4 * dpr);
+            }
+          }
+
+          if (toneOn) {
+            const f = currentFreq();
+            if (f >= fLo && f <= fHi) {
+              const x = freqToX(f) * w;
+              ctx.strokeStyle = 'rgba(188, 18, 42, 0.6)';
+              ctx.lineWidth = 1.5 * dpr;
+              ctx.beginPath();
+              ctx.moveTo(x, 0);
+              ctx.lineTo(x, h);
+              ctx.stroke();
+            }
+          }
+
+          const ys = new Float32Array(w);
+          for (let px = 0; px < w; px++) {
+            const fL = xToFreq(px / w);
+            const fR = xToFreq((px + 1) / w);
+            const binL = Math.max(0, Math.floor(fL / fNyq * bins));
+            const binR = Math.min(bins, Math.max(binL + 1, Math.ceil(fR / fNyq * bins)));
+            let peak = -Infinity;
+            for (let b = binL; b < binR; b++) if (dataBuf[b] > peak) peak = dataBuf[b];
+            if (!isFinite(peak)) peak = dbMin;
+            ys[px] = yFromDb(peak);
+          }
+
+          ctx.fillStyle = 'rgba(188, 18, 42, 0.25)';
+          ctx.beginPath();
+          ctx.moveTo(0, h);
+          for (let px = 0; px < w; px++) ctx.lineTo(px, ys[px]);
+          ctx.lineTo(w - 1, h);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.strokeStyle = '#bc122a';
+          ctx.lineWidth = 1.25 * dpr;
+          ctx.beginPath();
+          ctx.moveTo(0, ys[0]);
+          for (let px = 1; px < w; px++) ctx.lineTo(px, ys[px]);
+          ctx.stroke();
+
+          requestAnimationFrame(draw);
+        }
+
+        updateFreqDisplay();
+        updateResolution();
+        setToneBtn();
+        ctx.fillStyle = '#0c0c0e';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      /* ============ PHONE ============ */
+      function initPhone() {
+        const phoneStatus     = document.getElementById('phoneStatus');
+        const phoneStart      = document.getElementById('phoneStart');
+        const nowPlaying      = document.getElementById('phoneNowPlaying');
+        const phoneFreq       = document.getElementById('phoneFreq');
+        const phoneToneStatus = document.getElementById('phoneToneStatus');
+
+        let audioCtx = null;
+        let osc = null;
+        let toneGain = null;
+
+        function updatePhoneDisplay(cmd) {
+          nowPlaying.hidden = false;
+          phoneFreq.textContent = (cmd && cmd.play && cmd.freq) ? fmtFreq(cmd.freq) : '—';
+          phoneToneStatus.textContent = (cmd && cmd.play) ? 'Playing.' : 'No tone.';
+        }
+
+        function applyTone(cmd) {
+          if (!audioCtx) return;
+          if (cmd.play) {
+            if (!osc) {
+              osc = audioCtx.createOscillator();
+              osc.type = 'sine';
+              toneGain = audioCtx.createGain();
+              osc.connect(toneGain).connect(audioCtx.destination);
+              osc.start();
+            }
+            osc.frequency.setTargetAtTime(cmd.freq, audioCtx.currentTime, 0.01);
+            toneGain.gain.setTargetAtTime(cmd.gain, audioCtx.currentTime, 0.01);
+          } else {
+            if (osc) {
+              try { osc.stop(); } catch (e) {}
+              osc.disconnect();
+              toneGain.disconnect();
+              osc = null;
+              toneGain = null;
+            }
+          }
+          updatePhoneDisplay(cmd);
+        }
+
+        phoneStart.addEventListener('click', async () => {
+          phoneStart.disabled = true;
+          phoneStatus.classList.remove('error');
+          try {
+            phoneStatus.textContent = 'Requesting microphone…';
+            const stream = await navigator.mediaDevices.getUserMedia({
+              audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+            });
+            phoneStatus.textContent = 'Connecting…';
+
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+            const peer = new Peer();
+            peer.on('open', () => {
+              const conn = peer.connect(hostId, { reliable: true });
+              conn.on('open', () => {
+                phoneStatus.textContent = 'Connected. Streaming mic to laptop.';
+                phoneStatus.classList.add('ok');
+                updatePhoneDisplay(null);
+              });
+              conn.on('data', (cmd) => {
+                if (cmd && cmd.type === 'tone') applyTone(cmd);
+              });
+              conn.on('close', () => {
+                phoneStatus.textContent = 'Disconnected.';
+                phoneStatus.classList.remove('ok');
+                applyTone({ play: false });
+              });
+              const call = peer.call(hostId, stream);
+              call.on('error', (err) => {
+                phoneStatus.textContent = 'Audio call error: ' + err.message;
+                phoneStatus.classList.add('error');
+              });
+            });
+            peer.on('error', (err) => {
+              phoneStatus.textContent = 'Connection error: ' + err.message;
+              phoneStatus.classList.add('error');
+              phoneStart.disabled = false;
+            });
+
+            if ('wakeLock' in navigator) {
+              navigator.wakeLock.request('screen').catch(() => {});
+            }
+          } catch (err) {
+            phoneStatus.textContent = 'Could not start: ' + err.message;
+            phoneStatus.classList.add('error');
+            phoneStart.disabled = false;
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
