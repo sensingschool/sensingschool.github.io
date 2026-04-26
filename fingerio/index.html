@@ -913,7 +913,6 @@
           state.ctx = new (window.AudioContext || window.webkitAudioContext)();
           if (state.ctx.state === 'suspended') await state.ctx.resume();
           state.sampleRate = state.ctx.sampleRate;
-          srStat.firstChild && (srStat.firstChild.textContent = '');
           srStat.innerHTML = Math.round(state.sampleRate) + '<span class="unit"> Hz</span>';
 
           state.N = +symNEl.value;
