@@ -1140,6 +1140,60 @@
             <span class="arrow">Open</span>
           </div>
         </a>
+        <a class="card-link" href="fingerio/">
+          <div class="cover" aria-hidden="true">
+            <svg viewBox="0 0 200 100" preserveAspectRatio="none">
+              <g stroke="rgba(255,255,255,0.08)" stroke-width="0.5">
+                <line x1="40"  y1="0" x2="40"  y2="100"/>
+                <line x1="80"  y1="0" x2="80"  y2="100"/>
+                <line x1="120" y1="0" x2="120" y2="100"/>
+                <line x1="160" y1="0" x2="160" y2="100"/>
+              </g>
+              <!-- laptop / speaker on the left -->
+              <g transform="translate(14 56)">
+                <rect x="0" y="0" width="44" height="22" rx="2" fill="none" stroke="#bc122a" stroke-width="1.6"/>
+                <rect x="-4" y="22" width="52" height="3" rx="1.2" fill="#bc122a"/>
+                <circle cx="22" cy="11" r="3.2" fill="none" stroke="#bc122a" stroke-width="1.2"/>
+                <circle cx="22" cy="11" r="1.2" fill="#bc122a"/>
+              </g>
+              <!-- emitted sonar arcs going up toward the finger -->
+              <g fill="none" stroke="rgba(232,185,35,0.85)" stroke-width="1.1" stroke-linecap="round">
+                <path d="M 14 50 Q 36 38 58 50"/>
+                <path d="M 10 44 Q 36 28 62 44"/>
+                <path d="M 6  38 Q 36 18 66 38"/>
+              </g>
+              <!-- pointing finger at top center -->
+              <g transform="translate(82 4)" fill="none" stroke="#bc122a" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round">
+                <!-- finger barrel + tip -->
+                <path d="M 12 0 L 12 22 L 6 22 L 6 36 L 26 36 L 26 22 L 20 22 L 20 0 Z"/>
+                <!-- knuckle hint -->
+                <line x1="6" y1="28" x2="26" y2="28"/>
+              </g>
+              <!-- reflected echo arcs (cyan) coming back from finger -->
+              <g fill="none" stroke="#5cd7e0" stroke-width="1.0" stroke-linecap="round" opacity="0.9">
+                <path d="M 96 44 Q 110 56 124 68"/>
+                <path d="M 100 50 Q 116 62 132 74"/>
+              </g>
+              <!-- range-time waterfall sketch on the right -->
+              <g>
+                <rect x="138" y="14" width="48" height="72" rx="2" fill="rgba(255,255,255,0.04)" stroke="rgba(255,255,255,0.18)" stroke-width="0.6"/>
+                <!-- moving bright streak across the waterfall -->
+                <path d="M 142 70 C 152 62 158 50 168 42 S 180 30 184 26"
+                      fill="none" stroke="#E8B923" stroke-width="2.2" stroke-linecap="round"/>
+                <path d="M 142 70 C 152 62 158 50 168 42 S 180 30 184 26"
+                      fill="none" stroke="#fff" stroke-width="0.8" stroke-linecap="round" opacity="0.7"/>
+                <!-- faint static line (clutter) -->
+                <line x1="140" y1="80" x2="184" y2="80" stroke="#bc122a" stroke-width="0.8" opacity="0.5"/>
+              </g>
+            </svg>
+          </div>
+          <div class="body">
+            <span class="setup-chip single">Single device</span>
+            <h3>FingerIO</h3>
+            <p>Active sonar from a laptop speaker. A repeating 18&ndash;22&nbsp;kHz OFDM symbol turns each microphone frame into a channel impulse response &mdash; subtract the static room and the finger lights up.</p>
+            <span class="arrow">Open</span>
+          </div>
+        </a>
         <a class="card-link" href="range-resolution/">
           <div class="cover" aria-hidden="true">
             <svg viewBox="0 0 200 100" preserveAspectRatio="none">
