@@ -428,10 +428,11 @@
 
       /* ============ LAPTOP ============ */
       function initLaptop() {
-        const qrImg      = document.getElementById('qr');
-        const pairUrlEl  = document.getElementById('pairUrl');
+        const pairCodeEl = document.getElementById('pairCode');
         const pairStatus = document.getElementById('pairStatus');
-        const copyUrlBtn = document.getElementById('copyUrl');
+        const joinForm   = document.getElementById('joinForm');
+        const joinCodeIn = document.getElementById('joinCode');
+        const joinStatus = document.getElementById('joinStatus');
         const windowSel  = document.getElementById('windowSel');
         const accelMode  = document.getElementById('accelMode');
         const rateEl     = document.getElementById('rateEl');
@@ -445,45 +446,92 @@
             [['x','--x'],['y','--y'],['z','--z']], 'μT'),
         };
 
-        const peer = new Peer(makeId());
+        let peer = null;
         let dataConn = null;
         let lastSampleAt = 0;
         let sampleCount = 0;
         let rateAt = performance.now();
         let magAvail = null;
 
-        peer.on('open', (id) => {
-          const url = PAIR_ORIGIN + publicPath() + '?host=' + id;
-          pairUrlEl.value = url;
-          qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=' + encodeURIComponent(url);
-          pairStatus.textContent = 'Waiting for phone…';
+        function makeNumericCode() {
+          return ('0000' + Math.floor(Math.random() * 10000)).slice(-4);
+        }
+
+        function tryClaimPeer(attempt) {
+          attempt = attempt || 0;
+          if (attempt > 8) {
+            pairStatus.textContent = 'Could not allocate a session — please refresh.';
+            pairStatus.classList.add('error');
+            return;
+          }
+          const code = makeNumericCode();
+          peer = new Peer('sslab-imu-' + code);
+          let resolved = false;
+          peer.on('open', () => {
+            if (resolved) return;
+            resolved = true;
+            pairCodeEl.textContent = code.split('').join(' ');
+            pairStatus.textContent = 'Waiting for phone…';
+            attachPeerHandlers();
+          });
+          peer.on('error', (err) => {
+            if (resolved) {
+              pairStatus.textContent = 'Connection error: ' + err.message;
+              pairStatus.classList.add('error');
+              return;
+            }
+            if (err.type === 'unavailable-id') {
+              resolved = true;
+              try { peer.destroy(); } catch (_) {}
+              tryClaimPeer(attempt + 1);
+            } else {
+              resolved = true;
+              pairStatus.textContent = 'Pairing error: ' + err.message;
+              pairStatus.classList.add('error');
+            }
+          });
+        }
+
+        function attachPeerHandlers() {
+          peer.on('connection', (conn) => {
+            dataConn = conn;
+            conn.on('open', () => {
+              pairStatus.textContent = 'Phone connected.';
+              pairStatus.classList.remove('error');
+              pairStatus.classList.add('ok');
+              document.body.dataset.paired = '1';
+              sendConfig();
+            });
+            conn.on('data', (msg) => {
+              if (!msg) return;
+              if (msg.type === 'imu') onSample(msg);
+              else if (msg.type === 'caps') onCaps(msg);
+            });
+            conn.on('close', () => {
+              dataConn = null;
+              delete document.body.dataset.paired;
+              pairStatus.textContent = 'Phone disconnected.';
+              pairStatus.classList.remove('ok');
+            });
+          });
+        }
+
+        joinCodeIn.addEventListener('input', () => {
+          joinCodeIn.value = joinCodeIn.value.replace(/\D/g, '').slice(0, 4);
         });
-        peer.on('error', (err) => {
-          pairStatus.textContent = 'Pairing error: ' + err.message;
-          pairStatus.classList.add('error');
+        joinForm.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const v = joinCodeIn.value.replace(/\D/g, '').slice(0, 4);
+          if (v.length !== 4) {
+            joinStatus.textContent = 'Enter all 4 digits.';
+            joinStatus.classList.add('error');
+            joinCodeIn.focus();
+            return;
+          }
+          location.href = location.pathname + '?code=' + v;
         });
 
-        peer.on('connection', (conn) => {
-          dataConn = conn;
-          conn.on('open', () => {
-            pairStatus.textContent = 'Phone connected.';
-            pairStatus.classList.remove('error');
-            pairStatus.classList.add('ok');
-            document.body.dataset.paired = '1';
-            sendConfig();
-          });
-          conn.on('data', (msg) => {
-            if (!msg) return;
-            if (msg.type === 'imu') onSample(msg);
-            else if (msg.type === 'caps') onCaps(msg);
-          });
-          conn.on('close', () => {
-            dataConn = null;
-            delete document.body.dataset.paired;
-            pairStatus.textContent = 'Phone disconnected.';
-            pairStatus.classList.remove('ok');
-          });
-        });
+        tryClaimPeer();
 
         function onCaps(c) {
           magAvail = !!c.mag;
@@ -527,16 +575,6 @@
         windowSel.addEventListener('change', () => {
           const w = parseFloat(windowSel.value);
           for (const k of ['accel','gyro','mag']) charts[k].setWindow(w);
-        });
-
-        copyUrlBtn.addEventListener('click', async () => {
-          try {
-            await navigator.clipboard.writeText(pairUrlEl.value);
-            copyUrlBtn.textContent = 'Copied';
-            setTimeout(() => { copyUrlBtn.textContent = 'Copy link'; }, 1500);
-          } catch (e) {
-            pairUrlEl.select();
-          }
         });
 
         // periodic stale check
