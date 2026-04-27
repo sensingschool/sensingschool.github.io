@@ -392,10 +392,20 @@
 
         <div class="row" style="margin-top: 18px;">
           <label for="symRate">Symbol rate</label>
-          <input type="range" id="symRate" min="50" max="1000" step="10" value="200" />
+          <input type="range" id="symRate" min="25" max="1000" step="5" value="200" />
           <span class="val" id="symRateVal">200 baud</span>
         </div>
-        <p class="note">Symbols per second on the air. Faster = more bits/sec but less time per symbol, so noise and room reflections (multipath) start eating you. <strong>The receiver must use the same rate.</strong> OFDM uses its own rate (set by FFT size + cyclic prefix) and ignores this slider.</p>
+        <p class="note">Symbols per second on the air. Faster = more bits/sec but less time per symbol, so noise and room reflections (multipath) start eating you. <strong>Lower rates dilute multipath</strong> &mdash; if the room echo is ~5&nbsp;ms, drop to 50&nbsp;baud (20&nbsp;ms/symbol) and the echo becomes a small fraction of one symbol. <strong>The receiver must use the same rate.</strong> OFDM uses its own rate (set by FFT size + cyclic prefix) and ignores this slider.</p>
+
+        <div class="row">
+          <label for="eqMode">Equalizer</label>
+          <select id="eqMode" style="font-size: 14px; padding: 6px 10px;">
+            <option value="1">1-tap (default &mdash; assumes flat channel)</option>
+            <option value="2">2-tap DFE (cancels 1-symbol echo)</option>
+            <option value="3">3-tap DFE (cancels 1- and 2-symbol echoes)</option>
+          </select>
+        </div>
+        <p class="note">A 1-tap equalizer divides every symbol by a single channel gain&nbsp;<code>h&#8320;</code>. Fine if there&rsquo;s no echo. With acoustic multipath you need more taps: a <em>decision-feedback equalizer</em> (DFE) estimates extra taps&nbsp;<code>h&#8321;, h&#8322;</code> from the Barker-13 pilot, then for each data symbol it subtracts <code>h&#8321; &middot; previous-decided-symbol</code> (and similarly <code>h&#8322;</code>) before slicing. Applies to ASK/BPSK/QPSK/16-QAM; FSK and OFDM ignore it.</p>
 
         <div class="frame-grid" id="frameInfo"></div>
       </section>
@@ -466,6 +476,19 @@
           <span class="sub">last 1.5 s &middot; red ticks = detected preambles</span>
         </div>
         <div class="canvas-wrap"><canvas id="rxWaveCanvas"></canvas></div>
+
+        <div class="canvas-title" style="margin-top: 18px;">Sync diagnostics
+          <span class="sub">latest decoded frame &middot; updated after each preamble</span>
+        </div>
+        <div id="debugPanel" style="margin-top: 6px; padding: 12px 14px; background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.06); border-radius: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.7; color: var(--text);">
+          <div><span style="color: var(--grey-text);">preamble corr:</span>&nbsp; <span id="dbgCorr">&mdash;</span></div>
+          <div><span style="color: var(--grey-text);">fine sync offset:</span>&nbsp; <span id="dbgSync">&mdash;</span> <span style="color: var(--grey-text); font-size: 11px;">(pilot-aided; large = chirp sync was off)</span></div>
+          <div><span style="color: var(--grey-text);">channel h:</span>&nbsp; <span id="dbgH">&mdash;</span></div>
+          <div><span style="color: var(--grey-text);">tap magnitudes:</span>&nbsp; <span id="dbgTaps">&mdash;</span> <span style="color: var(--grey-text); font-size: 11px;">(|h&#8320;|, |h&#8321;|, &hellip; &mdash; non-trivial |h&#8321;| = echo present)</span></div>
+          <div><span style="color: var(--grey-text);">pilot residual:</span>&nbsp; <span id="dbgRes">&mdash;</span> <span style="color: var(--grey-text); font-size: 11px;">(low = sync good)</span></div>
+          <div><span style="color: var(--grey-text);">pilot phase slope:</span>&nbsp; <span id="dbgSlope">&mdash;</span> <span style="color: var(--grey-text); font-size: 11px;">(&asymp;0 = no CFO; ramp = clock skew)</span></div>
+          <div><span style="color: var(--grey-text);">pilot phases (&deg;):</span>&nbsp; <span id="dbgPhases" style="word-break: break-all;">&mdash;</span></div>
+        </div>
       </section>
 
       <section class="panel">
@@ -580,6 +603,8 @@
       const SR_DEFAULT = 48000;           // we adapt to actual context.sampleRate
       const FC = 4000;                    // carrier frequency (Hz)
       let SYM_RATE = 200;                 // symbols per second (single-carrier; user-adjustable)
+      let EQ_TAPS = 1;                    // 1 = single-tap (flat channel); 2/3 = DFE
+      const FINE_SYNC_MAX = 120;          // cap fine-sync search half-range, in samples
       const FSK_F0 = 3000;                // FSK bit-0 tone
       const FSK_F1 = 5000;                // FSK bit-1 tone
 
@@ -988,6 +1013,54 @@
         return [nRe / d, nIm / d];
       }
 
+      // Multi-tap channel estimate from a BPSK pilot, assuming silence (=0) before the pilot.
+      // Returns an array of complex taps [[re,im], ...] of length nTaps where tap j models
+      // ISI from the symbol j-back: rx[k] ≈ Σ_j taps[j] · tx[k-j]. Uses the Barker-13 fact
+      // that its lag-1/lag-2 autocorrelation sidelobes are ≤ 1, so the normal-equations
+      // matrix is nearly diagonal — we just take per-tap correlations as an approximation.
+      function estimateMultiTapChannel(pilotSyms, txBpsk, nTaps) {
+        const taps = [];
+        for (let j = 0; j < nTaps; j++) {
+          let nRe = 0, nIm = 0, d = 0;
+          for (let k = j; k < pilotSyms.length; k++) {
+            const tk = txBpsk[k - j];      // ±1, real
+            const [rRe, rIm] = pilotSyms[k];
+            nRe += rRe * tk;
+            nIm += rIm * tk;
+            d   += tk * tk;
+          }
+          taps.push(d > 0 ? [nRe / d, nIm / d] : [0, 0]);
+        }
+        return taps;
+      }
+
+      // Slice an equalized point to its nearest constellation point. Used as the DFE feedback
+      // symbol — what we subtract h_j · prev_decided from the next received symbol.
+      function decideSymbol(scheme, p) {
+        const [I, Q] = p;
+        if (scheme === 'BPSK') return [I > 0 ? 1 : -1, 0];
+        if (scheme === 'QPSK') {
+          const v = 1 / Math.SQRT2;
+          return [I > 0 ? v : -v, Q > 0 ? v : -v];
+        }
+        if (scheme === 'QAM16') {
+          const norm = 1 / Math.sqrt(10);
+          const lvl = (x) => {
+            if (x < -2 * norm) return -3 * norm;
+            if (x < 0)         return -1 * norm;
+            if (x <  2 * norm) return  1 * norm;
+            return  3 * norm;
+          };
+          return [lvl(I), lvl(Q)];
+        }
+        if (scheme === 'ASK') {
+          // TX values are 1.0 (bit=1) or 0.15 (bit=0), real only. After equalization with a
+          // BPSK ±1 pilot, "1" → +1 and "0" → +0.15 in the I axis.
+          return [Math.abs(I) > 0.5 ? 1.0 : 0.15, 0];
+        }
+        return p;
+      }
+
       // Demap a single equalized constellation point to bits
       function demap(scheme, p) {
         const [I, Q] = p;
@@ -1123,6 +1196,9 @@
       let preambleLenSamples = 0;
       let lastTxFrame = null;    // for BER
       const rxStats = { frames: 0, crcOk: 0, lastSnrDb: null };
+      // Per-detection diagnostics (preamble correlation peak, ratio to local mean).
+      // Keyed by absolute sample index of the detected preamble; consumed by tryDecodeFrame.
+      const detectionMeta = new Map();
 
       function setupRxBuffers(sr) {
         rxBufLen = Math.round(sr * RX_BUF_SECONDS);
@@ -1217,8 +1293,17 @@
               if (v > bestVal) { bestVal = v; bestPos = p; }
             }
             if (isDuplicate(bestPos)) continue;
+            detectionMeta.set(bestPos, {
+              corr: bestVal,
+              mean,
+              ratio: bestVal / Math.max(1e-9, mean),
+            });
             detections.push(bestPos);
           }
+        }
+        // Evict stats for detections that have fallen out of the ring buffer.
+        for (const k of detectionMeta.keys()) {
+          if (k < totalSamples - rxBufLen) detectionMeta.delete(k);
         }
         lastScannedAbs = scanEnd;
         return detections;
@@ -1227,7 +1312,7 @@
       // Pure decoder: given the captured audio starting AT dataStart (i.e. right after
       // preamble + post-preamble gap), demodulate one frame. Used by both the live mic
       // path and the simulation path.
-      function decodeFrameFromArray(scheme, x, sr, snrDb) {
+      function decodeFrameFromArray(scheme, x, sr, snrDb, baseOffset = 0) {
         const sps = Math.round(sr / SYM_RATE);
         const maxBits = (1 + 32 + 1) * 8;
 
@@ -1257,30 +1342,162 @@
               bits.push(eqRe > 0 ? 1 : 0);
             }
           }
-          return finalizeFrame(scheme, bits, allConst, snrDb);
+          return finalizeFrame(scheme, bits, allConst, snrDb, { note: 'OFDM: per-pilot diagnostics not surfaced' });
         }
 
         const totalSymBits = PILOT_BITS.length + maxBits;
 
         if (scheme === 'FSK') {
           const allBits = fskDemod(x, 0, sps, totalSymBits, sr).bits;
-          return finalizeFrame(scheme, Array.from(allBits.slice(PILOT_BITS.length)), null, snrDb);
+          return finalizeFrame(scheme, Array.from(allBits.slice(PILOT_BITS.length)), null, snrDb, { note: 'FSK: no coherent pilot' });
         }
 
         // Coherent: ASK / BPSK / QPSK / QAM16
-        const allSyms = downmix(x, 0, sps, totalSymBits, sr);
+
+        // ---- Data-aided fine sync ----
+        // The chirp gives only integer-sample coarse sync; pilot Barker-13 has near-ideal
+        // autocorrelation so we use it to find the symbol-timing offset that maximises
+        // |Σ_k rxSym_k(d) · conj(pilot_k)|². Search d ∈ [-half, +half] around baseOffset,
+        // bounded by what the captured x actually contains.
+        const halfSym = Math.min(FINE_SYNC_MAX, Math.floor(sps / 2));
+        const leftRoom  = baseOffset;
+        const rightRoom = x.length - (baseOffset + totalSymBits * sps) - 1;
+        const searchRange = Math.max(0, Math.min(halfSym, leftRoom, rightRoom));
+        const wCar = 2 * Math.PI * effectiveFc(sr) / sr;
+        const fineScores = [];
+        let bestD = 0, bestScore = -Infinity;
+        for (let d = -searchRange; d <= searchRange; d++) {
+          let accI = 0, accQ = 0;
+          for (let k = 0; k < PILOT_BITS.length; k++) {
+            let sI = 0, sQ = 0;
+            const symStart = baseOffset + d + k * sps;
+            for (let n = 0; n < sps; n++) {
+              const idx = symStart + n;
+              const ph = wCar * idx;
+              sI += x[idx] * Math.cos(ph);
+              sQ -= x[idx] * Math.sin(ph);
+            }
+            const tk = PILOT_BPSK[k];  // ±1
+            accI += sI * tk;
+            accQ += sQ * tk;
+          }
+          const sc = accI*accI + accQ*accQ;
+          fineScores.push(sc);
+          if (sc > bestScore) { bestScore = sc; bestD = d; }
+        }
+        // Parabolic sub-sample refinement (reported only — demod uses integer bestD).
+        let subD = 0;
+        const ci = bestD + searchRange;
+        if (searchRange > 0 && ci > 0 && ci < fineScores.length - 1) {
+          const y0 = fineScores[ci-1], y1 = fineScores[ci], y2 = fineScores[ci+1];
+          const den = y0 - 2*y1 + y2;
+          if (den < 0) {
+            const s = 0.5 * (y0 - y2) / den;
+            if (s > -1 && s < 1) subD = s;
+          }
+        }
+
+        const startCorrected = baseOffset + bestD;
+        const allSyms = downmix(x, startCorrected, sps, totalSymBits, sr);
         const pilotSyms = allSyms.slice(0, PILOT_BITS.length);
-        const h = estimateChannel(pilotSyms, PILOT_BPSK);
+        const dataSyms  = allSyms.slice(PILOT_BITS.length);
+
+        // ---- Multi-tap channel estimate + decision-feedback equalizer ----
+        // taps[0] = main tap h₀ (used for the equalizer division).
+        // taps[j] for j≥1 = ISI from the previous decided symbol j back; subtracted
+        // from each rx symbol before slicing.
+        const nTaps = Math.max(1, EQ_TAPS | 0);
+        const taps = estimateMultiTapChannel(pilotSyms, PILOT_BPSK, nTaps);
+        const h = taps[0];
         const hMag2 = h[0]*h[0] + h[1]*h[1];
-        if (hMag2 < 1e-12) return finalizeFrame(scheme, [], [], snrDb);
-        const dataSyms = allSyms.slice(PILOT_BITS.length);
-        const eqSyms = dataSyms.map(([re, im]) => [
-          (re * h[0] + im * h[1]) / hMag2,
-          (im * h[0] - re * h[1]) / hMag2
-        ]);
+        if (hMag2 < 1e-12) {
+          return finalizeFrame(scheme, [], [], snrDb, {
+            hMag: 0, hAngleDeg: 0, note: 'h≈0',
+            syncOffsetSamples: bestD + subD, syncSearchRange: searchRange,
+          });
+        }
+
+        // Initialise the DFE feedback queue from the tail of the pilot, so the very
+        // first data symbol can still subtract ISI from the symbol(s) preceding it.
+        // fbQueue[j-1] = symbol that came j positions before the current data symbol.
+        const fbQueue = [];
+        for (let j = 1; j < nTaps; j++) {
+          const k = PILOT_BITS.length - j;
+          fbQueue.push([PILOT_BPSK[k], 0]);  // pilot is BPSK ±1, real
+        }
+
+        const eqSyms = [];
         const bits = [];
-        for (const p of eqSyms) for (const b of demap(scheme, p)) bits.push(b);
-        return finalizeFrame(scheme, bits, eqSyms, snrDb);
+        for (let s = 0; s < dataSyms.length; s++) {
+          let cleanRe = dataSyms[s][0];
+          let cleanIm = dataSyms[s][1];
+          // Subtract ISI from previous decided symbols.
+          for (let j = 1; j < nTaps; j++) {
+            const [hRe, hIm] = taps[j];
+            const [pRe, pIm] = fbQueue[j-1];
+            cleanRe -= hRe * pRe - hIm * pIm;
+            cleanIm -= hRe * pIm + hIm * pRe;
+          }
+          // Equalize with h₀ (one complex division).
+          const eqRe = (cleanRe * h[0] + cleanIm * h[1]) / hMag2;
+          const eqIm = (cleanIm * h[0] - cleanRe * h[1]) / hMag2;
+          eqSyms.push([eqRe, eqIm]);
+          for (const b of demap(scheme, [eqRe, eqIm])) bits.push(b);
+          // Update feedback queue with the constellation-decided point.
+          if (nTaps > 1) {
+            fbQueue.unshift(decideSymbol(scheme, [eqRe, eqIm]));
+            fbQueue.pop();
+          }
+        }
+
+        // ---- pilot sync diagnostics ----
+        // Equalize the pilot itself; the residual to ±1 tells us how clean sync was.
+        let resSum = 0;
+        for (let i = 0; i < pilotSyms.length; i++) {
+          const [re, im] = pilotSyms[i];
+          const eqRe = (re * h[0] + im * h[1]) / hMag2;
+          const eqIm = (im * h[0] - re * h[1]) / hMag2;
+          const dx = eqRe - PILOT_BPSK[i];
+          const dy = eqIm;
+          resSum += dx*dx + dy*dy;
+        }
+        const pilotResidualRms = Math.sqrt(resSum / pilotSyms.length);
+
+        // Per-symbol phase after stripping the BPSK ±1 modulation (rx · conj(tx)).
+        // Constant across the pilot ⇒ no CFO. A linear ramp ⇒ carrier-frequency offset.
+        const phasesDeg = pilotSyms.map(([re, im], i) => {
+          const t = PILOT_BPSK[i];  // ±1, so conj(t) = t
+          return Math.atan2(im * t, re * t) * 180 / Math.PI;
+        });
+        // Unwrap so the slope estimate isn't broken by ±180° wraps.
+        const unwrapped = [phasesDeg[0]];
+        for (let i = 1; i < phasesDeg.length; i++) {
+          let p = phasesDeg[i];
+          const prev = unwrapped[i-1];
+          while (p - prev >  180) p -= 360;
+          while (p - prev < -180) p += 360;
+          unwrapped.push(p);
+        }
+        const Nu = unwrapped.length;
+        let sx=0, sy=0, sxx=0, sxy=0;
+        for (let i = 0; i < Nu; i++) {
+          sx += i; sy += unwrapped[i]; sxx += i*i; sxy += i*unwrapped[i];
+        }
+        const denom = Nu*sxx - sx*sx;
+        const slopeDegPerSym = denom > 0 ? (Nu*sxy - sx*sy) / denom : 0;
+
+        const debug = {
+          hMag: Math.sqrt(hMag2),
+          hAngleDeg: Math.atan2(h[1], h[0]) * 180 / Math.PI,
+          pilotResidualRms,
+          pilotPhasesDeg: unwrapped,
+          pilotSlopeDegPerSym: slopeDegPerSym,
+          syncOffsetSamples: bestD + subD,
+          syncSearchRange: searchRange,
+          eqTaps: nTaps,
+          tapMags: taps.map(t => Math.sqrt(t[0]*t[0] + t[1]*t[1])),
+        };
+        return finalizeFrame(scheme, bits, eqSyms, snrDb, debug);
       }
 
       // Live-path wrapper: pulls samples from the ring buffer and calls the pure decoder.
@@ -1298,15 +1515,27 @@
         } else {
           needSamples = (PILOT_BITS.length + maxBits) * sps;
         }
-        if (totalSamples < dataStart + needSamples + 16) return null;
+        // Pre-roll margin so the coherent path can search timing offsets either side.
+        const fineMargin = (scheme === 'OFDM' || scheme === 'FSK') ? 0 : Math.floor(sps / 2);
+        if (totalSamples < dataStart + needSamples + fineMargin + 16) return null;
 
         const sigRms = rmsRange(dataStart, Math.min(needSamples, sps * 32));
         const noiseRms = rmsRange(absPreambleStart - Math.min(absPreambleStart, sps * 6), sps * 6);
         let snrDb = null;
         if (noiseRms > 1e-6) snrDb = 20 * Math.log10(sigRms / noiseRms);
 
-        const x = rxRange(dataStart, needSamples + (OFDM_N + OFDM_CP));
-        return decodeFrameFromArray(scheme, x, sr, snrDb);
+        const x = rxRange(dataStart - fineMargin, needSamples + 2 * fineMargin + (OFDM_N + OFDM_CP));
+        const result = decodeFrameFromArray(scheme, x, sr, snrDb, fineMargin);
+        if (result) {
+          const meta = detectionMeta.get(absPreambleStart);
+          if (meta) {
+            result.debug = Object.assign({}, result.debug || {}, {
+              preambleCorr: meta.corr,
+              preambleCorrRatio: meta.ratio,
+            });
+          }
+        }
+        return result;
       }
 
       // ============================================================
@@ -1378,14 +1607,14 @@
       }
 
       // Given a stream of decoded bits (length+payload+crc, padded), parse into a frame
-      function finalizeFrame(scheme, bits, constellation, snrDb) {
-        if (bits.length < 16) return { ok: false, scheme, snrDb, constellation, bitsRx: bits };
+      function finalizeFrame(scheme, bits, constellation, snrDb, debug) {
+        if (bits.length < 16) return { ok: false, scheme, snrDb, constellation, bitsRx: bits, debug };
         const lengthBit = bits.slice(0, 8);
         let length = 0;
         for (let i = 0; i < 8; i++) length = (length << 1) | (lengthBit[i] & 1);
         if (length > 32) length = 32;  // sanity
         const totalBits = (1 + length + 1) * 8;
-        if (bits.length < totalBits) return { ok: false, scheme, snrDb, constellation, bitsRx: bits };
+        if (bits.length < totalBits) return { ok: false, scheme, snrDb, constellation, bitsRx: bits, debug };
         const useBits = bits.slice(0, totalBits);
         const bytes = bitsToBytes(new Uint8Array(useBits));
         const headerAndPayload = bytes.slice(0, 1 + length);
@@ -1393,7 +1622,7 @@
         const calcCrc = crc8(headerAndPayload);
         const ok = (rxCrc === calcCrc);
         const msg = bytesToText(bytes.slice(1, 1 + length));
-        return { ok, scheme, msg, snrDb, constellation, bitsRx: useBits, length };
+        return { ok, scheme, msg, snrDb, constellation, bitsRx: useBits, length, debug };
       }
 
       // ============================================================
@@ -1480,6 +1709,11 @@
         drawTxPreview();
         // Drop in-flight detections that were captured assuming the old rate.
         pendingDetections = [];
+      });
+
+      const eqModeEl = $('eqMode');
+      eqModeEl.addEventListener('change', () => {
+        EQ_TAPS = +eqModeEl.value;
       });
 
       // ============================================================
@@ -1657,6 +1891,43 @@
         if (lastDetections.length > 8) lastDetections.shift();
 
         if (result.constellation) lastConstellation = { scheme: result.scheme, points: result.constellation };
+
+        updateDebugPanel(result);
+      }
+
+      function updateDebugPanel(result) {
+        const d = (result && result.debug) || {};
+        const fmt = (v, dp = 2) => (typeof v === 'number' && isFinite(v)) ? v.toFixed(dp) : '—';
+        const corrEl = $('dbgCorr');
+        if (d.preambleCorr != null) {
+          corrEl.textContent = `${fmt(d.preambleCorr, 3)}  (${fmt(d.preambleCorrRatio, 1)}× local mean)`;
+        } else {
+          corrEl.textContent = '— (sim path or not measured)';
+        }
+        if (d.hMag != null) {
+          $('dbgH').textContent = `|h| = ${fmt(d.hMag, 3)},  ∠h = ${fmt(d.hAngleDeg, 1)}°`;
+        } else {
+          $('dbgH').textContent = d.note || 'n/a for this scheme';
+        }
+        if (d.syncOffsetSamples != null) {
+          $('dbgSync').textContent =
+            `${fmt(d.syncOffsetSamples, 2)} samples  (search ±${d.syncSearchRange ?? '—'})`;
+        } else {
+          $('dbgSync').textContent = 'n/a for this scheme';
+        }
+        if (Array.isArray(d.tapMags) && d.tapMags.length > 0) {
+          $('dbgTaps').textContent = d.tapMags.map(m => fmt(m, 3)).join('  ') +
+            `   (${d.eqTaps}-tap)`;
+        } else {
+          $('dbgTaps').textContent = 'n/a';
+        }
+        $('dbgRes').textContent = (d.pilotResidualRms != null) ? fmt(d.pilotResidualRms, 3) : 'n/a';
+        $('dbgSlope').textContent = (d.pilotSlopeDegPerSym != null)
+          ? `${fmt(d.pilotSlopeDegPerSym, 2)} °/sym`
+          : 'n/a';
+        $('dbgPhases').textContent = Array.isArray(d.pilotPhasesDeg)
+          ? d.pilotPhasesDeg.map(p => p.toFixed(0).padStart(4, ' ')).join(' ')
+          : 'n/a';
       }
 
       // Periodic decode loop (in addition to the rAF visualization loop)

@@ -378,6 +378,44 @@
         </section>
 
         <section class="panel needs-phone host-only">
+          <h2>Tilt: complementary filter <span class="units">(°)</span></h2>
+          <p class="note" style="margin-top: 0; margin-bottom: 18px;">
+            The accelerometer reads the gravity vector, so it gives clean tilt at rest but is corrupted by linear motion.
+            The gyroscope reads angular rate, smooth and responsive but its integral drifts.
+            A <strong>complementary filter</strong> trusts the gyro at short timescales and the accel at long ones:
+            <span style="font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; background: #f3f3f5; padding: 2px 6px; border-radius: 4px;">θ = α · (θ<sub>prev</sub> + ω · Δt) + (1 − α) · θ<sub>accel</sub></span>.
+            Slide α toward 1 to favour the gyro (smooth, drifty); toward 0 to favour the accel (jittery, no drift).
+          </p>
+          <div class="row" style="margin-bottom: 4px;">
+            <label for="compAlphaSlider">α</label>
+            <input type="range" id="compAlphaSlider" min="0" max="1" step="0.005" value="0.98" style="flex: 1; min-width: 160px; max-width: 360px;" />
+            <span class="status" id="compAlphaVal" style="min-width: 64px; text-align: right; font-variant-numeric: tabular-nums;">0.980</span>
+            <button id="tiltReset" class="secondary">Reset</button>
+          </div>
+          <p class="note" style="margin-top: 6px; margin-bottom: 18px;">
+            <strong>Pitch</strong> <span class="units">(rotation around phone X — tilting top edge up/down)</span>
+          </p>
+          <div class="canvas-wrap">
+            <canvas id="pitchCanvas"></canvas>
+            <div class="placeholder" id="pitchPlaceholder">Waiting for phone&hellip;</div>
+          </div>
+          <div class="legend" id="pitchLegend"></div>
+          <p class="note" style="margin-top: 22px; margin-bottom: 8px;">
+            <strong>Roll</strong> <span class="units">(rotation around phone Y — tilting left/right edge down)</span>
+          </p>
+          <div class="canvas-wrap">
+            <canvas id="rollCanvas"></canvas>
+            <div class="placeholder" id="rollPlaceholder">Waiting for phone&hellip;</div>
+          </div>
+          <div class="legend" id="rollLegend"></div>
+          <p class="note">
+            Try shaking the phone in place — the <span style="color: var(--x); font-weight: 700;">accel</span> trace jumps around while <span style="color: var(--y); font-weight: 700;">gyro</span> stays calm.
+            Now hold it steady at an angle for a while — the <span style="color: var(--y); font-weight: 700;">gyro</span> trace slowly walks away from truth while <span style="color: var(--x); font-weight: 700;">accel</span> stays anchored.
+            The <span style="color: var(--z); font-weight: 700;">complementary</span> trace stays both smooth and anchored.
+          </p>
+        </section>
+
+        <section class="panel needs-phone host-only">
           <h2>Orientation <span class="units">(°, from DeviceOrientationEvent)</span></h2>
           <p class="live-readout" style="margin: 0 0 6px;">α (yaw / Z) <span id="alphaVal">—</span></p>
           <p class="live-readout" style="margin: 0 0 6px;">β (pitch / X) <span id="betaVal">—</span></p>
@@ -569,7 +607,28 @@
             [['x','--x'],['y','--y'],['z','--z']], '°/s'),
           mag:   makeChart('magCanvas',   'magPlaceholder',   'magLegend',
             [['x','--x'],['y','--y'],['z','--z']], 'μT'),
+          pitch: makeChart('pitchCanvas', 'pitchPlaceholder', 'pitchLegend',
+            [['accel','--x'],['gyro','--y'],['comp','--z']], '°'),
+          roll:  makeChart('rollCanvas',  'rollPlaceholder',  'rollLegend',
+            [['accel','--x'],['gyro','--y'],['comp','--z']], '°'),
         };
+
+        // Complementary filter state (radians internally, plotted in degrees)
+        const tilt = {
+          pitchGyro: 0, rollGyro: 0,    // pure gyro integration (drifts)
+          pitchComp: 0, rollComp: 0,    // complementary filter
+          lastT: null,
+        };
+        let compAlpha = 0.98;
+        const compAlphaSlider = document.getElementById('compAlphaSlider');
+        const compAlphaValEl  = document.getElementById('compAlphaVal');
+        compAlphaSlider.addEventListener('input', () => {
+          compAlpha = parseFloat(compAlphaSlider.value);
+          compAlphaValEl.textContent = compAlpha.toFixed(3);
+        });
+        document.getElementById('tiltReset').addEventListener('click', () => {
+          tilt.lastT = null; // re-seed gyro & comp from next accel sample
+        });
 
         let peer = null;
         let dataConn = null;
@@ -1128,6 +1187,38 @@
           if (s.mag) charts.mag.push(t, s.mag);
           else if (s.heading != null) charts.mag.push(t, { x: s.heading, y: NaN, z: NaN });
 
+          // --- Complementary filter for tilt (pitch & roll) ---
+          // Accel-derived tilt assumes the only force is gravity:
+          //   pitch = atan2(ay, az)               — rotation around X (top edge up/down)
+          //   roll  = atan2(ax, sqrt(ay² + az²))  — rotation around Y (right edge up/down)
+          // Gyro rates: gyro.x = β̇ (pitch rate), gyro.y = γ̇ (roll rate), already in °/s.
+          if (s.accelG && s.gyro) {
+            const ax = s.accelG.x, ay = s.accelG.y, az = s.accelG.z;
+            const RAD2DEG = 180 / Math.PI;
+            const pitchA = Math.atan2(ay, az) * RAD2DEG;
+            const rollA  = Math.atan2(ax, Math.sqrt(ay*ay + az*az)) * RAD2DEG;
+
+            if (tilt.lastT === null) {
+              // Seed both integrators from the current accel reading
+              tilt.pitchGyro = pitchA; tilt.rollGyro = rollA;
+              tilt.pitchComp = pitchA; tilt.rollComp = rollA;
+              tilt.lastT = t;
+            }
+            const dt = Math.max(0, Math.min(0.5, t - tilt.lastT));
+            tilt.lastT = t;
+
+            // Pure gyro integration — smooth, but drifts
+            tilt.pitchGyro += s.gyro.x * dt;
+            tilt.rollGyro  += s.gyro.y * dt;
+
+            // Complementary: high-pass the gyro, low-pass the accel
+            tilt.pitchComp = compAlpha * (tilt.pitchComp + s.gyro.x * dt) + (1 - compAlpha) * pitchA;
+            tilt.rollComp  = compAlpha * (tilt.rollComp  + s.gyro.y * dt) + (1 - compAlpha) * rollA;
+
+            charts.pitch.push(t, { x: pitchA, y: tilt.pitchGyro, z: tilt.pitchComp });
+            charts.roll.push (t, { x: rollA,  y: tilt.rollGyro,  z: tilt.rollComp  });
+          }
+
           sampleCount++;
           const now = performance.now();
           if (now - rateAt > 500) {
@@ -1147,14 +1238,14 @@
         function applyWindow() {
           windowSec = sliderToWin(parseFloat(windowSlider.value));
           windowVal.textContent = fmtWin(windowSec);
-          for (const k of ['accel','gyro','mag']) charts[k].setWindow(windowSec);
+          for (const k of ['accel','gyro','mag','pitch','roll']) charts[k].setWindow(windowSec);
         }
         windowSlider.addEventListener('input', applyWindow);
         applyWindow();
 
         const showSamplesEl = document.getElementById('showSamples');
         function applyShowSamples() {
-          for (const k of ['accel','gyro','mag']) charts[k].setShowSamples(showSamplesEl.checked);
+          for (const k of ['accel','gyro','mag','pitch','roll']) charts[k].setShowSamples(showSamplesEl.checked);
         }
         showSamplesEl.addEventListener('change', applyShowSamples);
         applyShowSamples();
@@ -1163,7 +1254,7 @@
         function applyShowAll() {
           const on = showAllEl.checked;
           windowSlider.disabled = on;
-          for (const k of ['accel','gyro','mag']) charts[k].setShowAll(on);
+          for (const k of ['accel','gyro','mag','pitch','roll']) charts[k].setShowAll(on);
         }
         showAllEl.addEventListener('change', applyShowAll);
         applyShowAll();
