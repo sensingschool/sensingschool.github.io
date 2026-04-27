@@ -382,6 +382,61 @@
           </div>
           <p class="note">Audio travels via WebRTC (Opus codec). Expect bandwidth roll-off above ~16 kHz and some quantization artifacts versus a direct mic feed.</p>
         </section>
+
+        <section class="panel needs-phone host-only">
+          <h2>Doppler Ninja</h2>
+          <style>
+            .game-wrap { aspect-ratio: 16 / 10; }
+            .game-hud { position: absolute; top: 12px; left: 16px; right: 16px; display: flex; gap: 22px; pointer-events: none; z-index: 2; }
+            .hud-stat { display: flex; flex-direction: column; gap: 1px; }
+            .hud-label { font-size: 9.5px; letter-spacing: 1.4px; text-transform: uppercase; color: rgba(255,255,255,0.55); font-weight: 700; }
+            .hud-val { font-variant-numeric: tabular-nums; font-weight: 900; font-size: 22px; color: #fff; letter-spacing: -0.5px; line-height: 1; }
+            .hud-stat.misses .hud-val { color: #ff6b6b; }
+            .hud-spacer { flex: 1; }
+            .signal-meter { position: absolute; bottom: 12px; right: 14px; display: flex; flex-direction: column; gap: 4px; width: 150px; pointer-events: none; z-index: 2; }
+            .meter-row { display: flex; align-items: center; gap: 8px; }
+            .meter-cap { color: rgba(255,255,255,0.55); font-size: 10px; letter-spacing: 0.5px; width: 32px; text-align: right; font-weight: 700; }
+            .meter-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; }
+            .meter-fill { height: 100%; width: 0%; transition: width 0.05s linear; }
+            .meter-fill.upper { background: #bc122a; }
+            .meter-fill.lower { background: #6ba9ff; }
+            .ninja-intro { font-size: 13px; line-height: 1.5; color: var(--grey-text); margin: -8px 0 16px; max-width: 70ch; }
+            .ninja-intro code { background: #f1f2f4; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+          </style>
+          <p class="ninja-intro">A near-inaudible carrier (~15&nbsp;kHz) plays from the phone's speaker. When your hand moves toward or away from the phone, the reflected wave returns shifted in frequency (<code>Δf = 2·v·f/c</code> — about 87&nbsp;Hz per&nbsp;m/s at 15&nbsp;kHz). The phone's mic streams the signal back here over WebRTC, and the sideband energy swings the blade. Wave your hand 10–40&nbsp;cm above the phone to slice fruit; avoid bombs.</p>
+          <div class="canvas-wrap game-wrap">
+            <canvas id="game"></canvas>
+            <div class="placeholder" id="gamePlaceholder">Press start to play</div>
+            <div class="game-hud" id="gameHud" style="display: none;">
+              <div class="hud-stat"><span class="hud-label">Score</span><span class="hud-val" id="scoreVal">0</span></div>
+              <div class="hud-stat"><span class="hud-label">Best</span><span class="hud-val" id="bestVal">0</span></div>
+              <div class="hud-spacer"></div>
+              <div class="hud-stat misses"><span class="hud-label">Misses</span><span class="hud-val" id="missVal">0 / 3</span></div>
+            </div>
+            <div class="signal-meter" id="signalMeter" style="display: none;">
+              <div class="meter-row">
+                <span class="meter-cap">TOWARD</span>
+                <div class="meter-bar"><div class="meter-fill upper" id="meterUpper"></div></div>
+              </div>
+              <div class="meter-row">
+                <span class="meter-cap">AWAY</span>
+                <div class="meter-bar"><div class="meter-fill lower" id="meterLower"></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="row" style="margin-top: 16px;">
+            <button id="gameBtn">Start game</button>
+            <label for="carrierSlider" style="margin-left: 4px;">Carrier</label>
+            <input type="range" id="carrierSlider" min="6000" max="20000" step="100" value="15000" style="flex: 1 1 200px;" />
+            <span class="status" id="carrierVal">15.0 kHz</span>
+          </div>
+          <div class="row" style="margin-top: 8px;">
+            <label for="sensSlider">Sensitivity</label>
+            <input type="range" id="sensSlider" min="0.3" max="4" step="0.05" value="1.5" style="flex: 1 1 200px;" />
+            <button id="recalBtn" class="secondary" style="margin-left: 4px;">Recalibrate</button>
+          </div>
+          <p class="note">The carrier plays from the <strong>phone</strong>, not your laptop. WebRTC's Opus codec rolls off above ~16&nbsp;kHz, so 15&nbsp;kHz is a good balance — slide lower if the meter never moves, higher (toward inaudible) if you don't mind a thinner signal. Hold still during calibration.</p>
+        </section>
       </div>
 
       <!-- PHONE ROLE -->
@@ -840,6 +895,450 @@
         setToneBtn();
         ctx.fillStyle = '#0c0c0e';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // ----- Doppler Ninja (remote) -----
+        const gCanvas = document.getElementById('game');
+        const gCtx = gCanvas.getContext('2d');
+        const gameBtn = document.getElementById('gameBtn');
+        const gamePlaceholder = document.getElementById('gamePlaceholder');
+        const gameHud = document.getElementById('gameHud');
+        const signalMeter = document.getElementById('signalMeter');
+        const scoreEl = document.getElementById('scoreVal');
+        const bestEl = document.getElementById('bestVal');
+        const missEl = document.getElementById('missVal');
+        const carrierSlider = document.getElementById('carrierSlider');
+        const carrierValEl = document.getElementById('carrierVal');
+        const sensSlider = document.getElementById('sensSlider');
+        const recalBtn = document.getElementById('recalBtn');
+        const meterUp = document.getElementById('meterUpper');
+        const meterLo = document.getElementById('meterLower');
+
+        let gameRunning = false;
+        let lastFrame = 0;
+        let theta = 0, omega = 0;
+        let fruits = [], parts = [];
+        let spawnTimer = 0;
+        let score = 0, misses = 0;
+        let best = +(localStorage.getItem('dopplerNinjaRemoteBest') || 0);
+        let baselineUp = 0, baselineLo = 0, calibFrames = 0;
+        const CALIB_FRAMES = 60;
+        let smoothedUp = 0, smoothedLo = 0;
+        let dopplerBuf = null;
+
+        bestEl.textContent = best;
+
+        const formatCarrier = f => (f / 1000).toFixed(1) + ' kHz';
+
+        carrierSlider.addEventListener('input', () => {
+          const f = parseInt(carrierSlider.value, 10);
+          carrierValEl.textContent = formatCarrier(f);
+          if (gameRunning) sendCarrier(true, f);
+          resetCalibration();
+        });
+        recalBtn.addEventListener('click', resetCalibration);
+
+        function resetCalibration() {
+          calibFrames = 0;
+          baselineUp = 0;
+          baselineLo = 0;
+        }
+
+        function sendCarrier(play, freq) {
+          if (!dataConn || !dataConn.open) return;
+          dataConn.send({ type: 'carrier', play: !!play, freq: freq != null ? +freq : undefined });
+        }
+
+        function startGame() {
+          if (!dataConn || !dataConn.open) {
+            gamePlaceholder.style.display = 'grid';
+            gamePlaceholder.textContent = 'Pair a phone first';
+            return;
+          }
+          if (!analyser) {
+            gamePlaceholder.style.display = 'grid';
+            gamePlaceholder.textContent = 'Waiting for phone audio…';
+            return;
+          }
+          if (parseInt(fftSel.value, 10) < 8192) {
+            fftSel.value = '8192';
+            fftSel.dispatchEvent(new Event('change'));
+          }
+          const f = parseInt(carrierSlider.value, 10);
+          sendCarrier(true, f);
+
+          score = 0; misses = 0;
+          fruits = []; parts = [];
+          theta = 0; omega = 0;
+          spawnTimer = 0.4;
+          resetCalibration();
+          updateHud();
+
+          gameRunning = true;
+          gameBtn.textContent = 'Stop game';
+          gameBtn.classList.add('danger');
+          gamePlaceholder.style.display = 'none';
+          gameHud.style.display = 'flex';
+          signalMeter.style.display = 'flex';
+          lastFrame = performance.now();
+          requestAnimationFrame(gameLoop);
+        }
+
+        function stopGame() {
+          gameRunning = false;
+          sendCarrier(false);
+          gameBtn.textContent = 'Start game';
+          gameBtn.classList.remove('danger');
+          gamePlaceholder.style.display = 'grid';
+        }
+
+        gameBtn.addEventListener('click', () => { if (gameRunning) stopGame(); else startGame(); });
+
+        function updateHud() {
+          scoreEl.textContent = score;
+          bestEl.textContent = best;
+          missEl.textContent = misses + ' / 3';
+        }
+
+        function spawnFruit(w, h, dpr) {
+          const types = [
+            { color: '#e63946', stem: '#3a8a3a', r: 28 },
+            { color: '#f4a72c', stem: '#3a8a3a', r: 30 },
+            { color: '#ffd84a', stem: '#3a8a3a', r: 26 },
+            { color: '#7ad27a', stem: '#3a8a3a', r: 26 },
+            { color: '#c33656', stem: '#3a8a3a', r: 36 },
+          ];
+          const isBomb = Math.random() < 0.12;
+          const t = isBomb
+            ? { color: '#1a1a1a', stem: '#444', r: 26, bomb: true }
+            : types[Math.floor(Math.random() * types.length)];
+          const side = Math.random() < 0.5 ? 1 : -1;
+          const x = w * 0.5 + side * (w * 0.05 + Math.random() * w * 0.35);
+          const targetX = w * 0.5 + (Math.random() - 0.5) * w * 0.7;
+          const apexY = h * (0.05 + Math.random() * 0.22);
+          const startY = h + 30 * dpr;
+          const g_cv = 1300 * dpr;
+          const tA = Math.sqrt(Math.max(1, 2 * (startY - apexY) / g_cv));
+          const vy = -g_cv * tA;
+          const vx = (targetX - x) / (2 * tA);
+          return {
+            x, y: startY,
+            vx, vy,
+            r: t.r * dpr,
+            color: t.color,
+            stem: t.stem,
+            bomb: !!t.bomb,
+            rot: Math.random() * Math.PI * 2,
+            vRot: (Math.random() - 0.5) * 4,
+            sliced: false,
+          };
+        }
+
+        function drawFruit(x, y, r, color, stem, rot, bomb) {
+          gCtx.save();
+          gCtx.translate(x, y);
+          gCtx.rotate(rot);
+          if (bomb) {
+            gCtx.fillStyle = '#1a1a1a';
+            gCtx.beginPath(); gCtx.arc(0, 0, r, 0, Math.PI * 2); gCtx.fill();
+            gCtx.fillStyle = 'rgba(255,255,255,0.13)';
+            gCtx.beginPath(); gCtx.arc(-r * 0.32, -r * 0.32, r * 0.28, 0, Math.PI * 2); gCtx.fill();
+            gCtx.strokeStyle = '#888'; gCtx.lineWidth = Math.max(2, r * 0.1);
+            gCtx.beginPath();
+            gCtx.moveTo(0, -r);
+            gCtx.quadraticCurveTo(r * 0.4, -r * 1.4, r * 0.6, -r * 1.6);
+            gCtx.stroke();
+            gCtx.fillStyle = '#ffb300';
+            gCtx.beginPath(); gCtx.arc(r * 0.6, -r * 1.6, r * 0.18, 0, Math.PI * 2); gCtx.fill();
+            gCtx.fillStyle = 'rgba(255,179,0,0.35)';
+            gCtx.beginPath(); gCtx.arc(r * 0.6, -r * 1.6, r * 0.32, 0, Math.PI * 2); gCtx.fill();
+          } else {
+            gCtx.fillStyle = color;
+            gCtx.beginPath(); gCtx.arc(0, 0, r, 0, Math.PI * 2); gCtx.fill();
+            gCtx.fillStyle = 'rgba(255,255,255,0.22)';
+            gCtx.beginPath(); gCtx.arc(-r * 0.32, -r * 0.32, r * 0.32, 0, Math.PI * 2); gCtx.fill();
+            gCtx.fillStyle = stem;
+            gCtx.fillRect(-r * 0.06, -r - r * 0.18, r * 0.12, r * 0.22);
+            gCtx.beginPath();
+            gCtx.ellipse(r * 0.18, -r - r * 0.05, r * 0.22, r * 0.11, -0.6, 0, Math.PI * 2);
+            gCtx.fill();
+          }
+          gCtx.restore();
+        }
+
+        function spawnHalves(f) {
+          const ang = theta + Math.PI / 2;
+          const px = -Math.sin(ang), py = Math.cos(ang);
+          const sweepSpeed = 60 + Math.abs(omega) * 18;
+          for (const sgn of [1, -1]) {
+            parts.push({
+              x: f.x + sgn * px * 4,
+              y: f.y + sgn * py * 4,
+              vx: f.vx * 0.6 + sgn * px * sweepSpeed,
+              vy: f.vy * 0.6 + sgn * py * sweepSpeed - 80,
+              r: f.r,
+              color: f.color,
+              rot: f.rot,
+              vRot: f.vRot + sgn * 4,
+              side: sgn,
+              life: 1.0,
+              maxLife: 1.0,
+            });
+          }
+        }
+
+        function spawnExplosion(f) {
+          for (let i = 0; i < 22; i++) {
+            const a = Math.random() * Math.PI * 2;
+            const s = 80 + Math.random() * 280;
+            parts.push({
+              explosion: true,
+              x: f.x, y: f.y,
+              vx: Math.cos(a) * s, vy: Math.sin(a) * s,
+              r: 3 + Math.random() * 5,
+              color: i < 8 ? '#ffb300' : i < 16 ? '#bc122a' : '#444',
+              life: 0.7,
+              maxLife: 0.7,
+            });
+          }
+        }
+
+        function readDoppler() {
+          if (!analyser || !dataBuf) return { up: 0, lo: 0 };
+          if (!dopplerBuf || dopplerBuf.length !== dataBuf.length) {
+            dopplerBuf = new Float32Array(dataBuf.length);
+          }
+          analyser.getFloatFrequencyData(dopplerBuf);
+          const f = parseInt(carrierSlider.value, 10);
+          const sr = audioCtx.sampleRate;
+          const fftSize = analyser.fftSize;
+          const binHz = sr / fftSize;
+          const carrierBin = Math.round(f / binHz);
+          const guardBins = Math.max(2, Math.ceil(50 / binHz));
+          const maxBins = Math.ceil(700 / binHz);
+          let up = 0, lo = 0;
+          const len = dopplerBuf.length;
+          for (let i = guardBins; i <= maxBins; i++) {
+            const bU = carrierBin + i;
+            const bL = carrierBin - i;
+            if (bU < len) {
+              const db = dopplerBuf[bU];
+              if (isFinite(db)) up += Math.pow(10, db / 20);
+            }
+            if (bL >= 0) {
+              const db = dopplerBuf[bL];
+              if (isFinite(db)) lo += Math.pow(10, db / 20);
+            }
+          }
+          return { up, lo };
+        }
+
+        function pointSegDist(px, py, ax, ay, bx, by) {
+          const dx = bx - ax, dy = by - ay;
+          const len2 = dx * dx + dy * dy;
+          if (len2 < 1e-6) return Math.hypot(px - ax, py - ay);
+          let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+          t = Math.max(0, Math.min(1, t));
+          const cx = ax + t * dx, cy = ay + t * dy;
+          return Math.hypot(px - cx, py - cy);
+        }
+
+        function endGame() {
+          const finalScore = score;
+          setTimeout(() => {
+            stopGame();
+            gamePlaceholder.textContent = 'Game over · score ' + finalScore + ' · press start to play again';
+            gameHud.style.display = 'none';
+            signalMeter.style.display = 'none';
+          }, 250);
+        }
+
+        function gameLoop(now) {
+          if (!gameRunning) return;
+          if (!analyser || !dataConn || !dataConn.open) { stopGame(); return; }
+          const dt = Math.min(0.05, (now - lastFrame) / 1000);
+          lastFrame = now;
+
+          const rect = gCanvas.getBoundingClientRect();
+          const dpr = window.devicePixelRatio || 1;
+          const w = Math.round(rect.width * dpr);
+          const h = Math.round(rect.height * dpr);
+          if (gCanvas.width !== w || gCanvas.height !== h) {
+            gCanvas.width = w; gCanvas.height = h;
+          }
+
+          const { up, lo } = readDoppler();
+          smoothedUp = smoothedUp * 0.55 + up * 0.45;
+          smoothedLo = smoothedLo * 0.55 + lo * 0.45;
+
+          if (calibFrames < CALIB_FRAMES) {
+            calibFrames++;
+            baselineUp = (baselineUp * (calibFrames - 1) + smoothedUp) / calibFrames;
+            baselineLo = (baselineLo * (calibFrames - 1) + smoothedLo) / calibFrames;
+          }
+
+          const cleanUp = Math.max(0, smoothedUp - baselineUp * 1.6);
+          const cleanLo = Math.max(0, smoothedLo - baselineLo * 1.6);
+          const dirSig = cleanUp - cleanLo;
+          const sens = parseFloat(sensSlider.value);
+
+          const meterMax = 0.05;
+          meterUp.style.width = Math.min(100, (cleanUp / meterMax) * 100 * sens) + '%';
+          meterLo.style.width = Math.min(100, (cleanLo / meterMax) * 100 * sens) + '%';
+
+          const driveK = 700 * sens;
+          const springK = 14;
+          const dampK = 4;
+          omega += dirSig * driveK * dt;
+          omega -= theta * springK * dt;
+          omega -= omega * dampK * dt;
+          theta += omega * dt;
+          const limit = Math.PI / 2 - 0.18;
+          if (theta > limit) { theta = limit; omega = -omega * 0.3; }
+          if (theta < -limit) { theta = -limit; omega = -omega * 0.3; }
+
+          if (calibFrames >= CALIB_FRAMES) {
+            spawnTimer -= dt;
+            if (spawnTimer <= 0) {
+              fruits.push(spawnFruit(w, h, dpr));
+              const burstChance = Math.min(0.35, score * 0.005);
+              if (Math.random() < burstChance) fruits.push(spawnFruit(w, h, dpr));
+              const baseInterval = Math.max(0.45, 1.5 - score * 0.015);
+              spawnTimer = baseInterval * (0.7 + Math.random() * 0.6);
+            }
+          }
+
+          const g_cv = 1300 * dpr;
+          for (const f of fruits) {
+            f.x += f.vx * dt;
+            f.y += f.vy * dt;
+            f.vy += g_cv * dt;
+            f.rot += f.vRot * dt;
+          }
+
+          const pivotX = w / 2;
+          const pivotY = h - 6 * dpr;
+          const bladeLen = h * 0.62;
+          const tipX = pivotX + Math.sin(theta) * bladeLen;
+          const tipY = pivotY - Math.cos(theta) * bladeLen;
+          const SWING_CUT_THRESHOLD = 1.1;
+          if (Math.abs(omega) > SWING_CUT_THRESHOLD) {
+            for (const f of fruits) {
+              if (f.sliced) continue;
+              if (f.y < -50 * dpr) continue;
+              const d = pointSegDist(f.x, f.y, pivotX, pivotY, tipX, tipY);
+              if (d < f.r * 0.92) {
+                f.sliced = true;
+                if (f.bomb) {
+                  spawnExplosion(f);
+                  misses++;
+                  updateHud();
+                  if (misses >= 3) endGame();
+                } else {
+                  spawnHalves(f);
+                  score += 1;
+                  if (score > best) { best = score; localStorage.setItem('dopplerNinjaRemoteBest', best); }
+                  updateHud();
+                }
+              }
+            }
+          }
+
+          fruits = fruits.filter(f => {
+            if (f.sliced) return false;
+            if (f.y > h + 80 * dpr || f.x < -120 * dpr || f.x > w + 120 * dpr) {
+              if (!f.bomb) {
+                misses++;
+                updateHud();
+                if (misses >= 3) endGame();
+              }
+              return false;
+            }
+            return true;
+          });
+
+          for (const p of parts) {
+            p.x += p.vx * dt;
+            p.y += p.vy * dt;
+            p.vy += g_cv * dt;
+            if (p.rot !== undefined) p.rot += (p.vRot || 0) * dt;
+            p.life -= dt;
+          }
+          parts = parts.filter(p => p.life > 0 && p.y < h + 120 * dpr);
+
+          const grad = gCtx.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, '#0c0c0e');
+          grad.addColorStop(1, '#1a1c26');
+          gCtx.fillStyle = grad;
+          gCtx.fillRect(0, 0, w, h);
+
+          const floorGlow = gCtx.createRadialGradient(pivotX, pivotY, 0, pivotX, pivotY, w * 0.4);
+          floorGlow.addColorStop(0, 'rgba(188,18,42,0.25)');
+          floorGlow.addColorStop(1, 'rgba(188,18,42,0)');
+          gCtx.fillStyle = floorGlow;
+          gCtx.fillRect(0, 0, w, h);
+
+          for (const f of fruits) drawFruit(f.x, f.y, f.r, f.color, f.stem, f.rot, f.bomb);
+
+          for (const p of parts) {
+            const a = Math.max(0, p.life / p.maxLife);
+            gCtx.globalAlpha = a;
+            if (p.explosion) {
+              gCtx.fillStyle = p.color;
+              gCtx.beginPath(); gCtx.arc(p.x, p.y, p.r * dpr, 0, Math.PI * 2); gCtx.fill();
+            } else {
+              gCtx.save();
+              gCtx.translate(p.x, p.y);
+              gCtx.rotate(p.rot);
+              gCtx.fillStyle = p.color;
+              gCtx.beginPath();
+              gCtx.arc(0, 0, p.r, p.side > 0 ? -Math.PI / 2 : Math.PI / 2, p.side > 0 ? Math.PI / 2 : 3 * Math.PI / 2);
+              gCtx.closePath();
+              gCtx.fill();
+              gCtx.fillStyle = 'rgba(255,255,255,0.5)';
+              gCtx.fillRect(-1.5 * dpr, -p.r, 3 * dpr, 2 * p.r);
+              gCtx.restore();
+            }
+            gCtx.globalAlpha = 1;
+          }
+
+          const swingMag = Math.min(1, Math.abs(omega) / 6);
+          gCtx.strokeStyle = 'rgba(255,90,120,' + (0.08 + swingMag * 0.18) + ')';
+          gCtx.lineWidth = 18 * dpr;
+          gCtx.lineCap = 'round';
+          gCtx.beginPath(); gCtx.moveTo(pivotX, pivotY); gCtx.lineTo(tipX, tipY); gCtx.stroke();
+
+          const grad2 = gCtx.createLinearGradient(pivotX, pivotY, tipX, tipY);
+          grad2.addColorStop(0, '#bc122a');
+          grad2.addColorStop(0.6, 'rgba(255,140,160,' + (0.85 + swingMag * 0.15) + ')');
+          grad2.addColorStop(1, '#fff');
+          gCtx.strokeStyle = grad2;
+          gCtx.lineWidth = (3 + swingMag * 2) * dpr;
+          gCtx.beginPath(); gCtx.moveTo(pivotX, pivotY); gCtx.lineTo(tipX, tipY); gCtx.stroke();
+
+          gCtx.fillStyle = '#bc122a';
+          gCtx.beginPath(); gCtx.arc(pivotX, pivotY, 9 * dpr, 0, Math.PI * 2); gCtx.fill();
+          gCtx.fillStyle = '#fff';
+          gCtx.beginPath(); gCtx.arc(pivotX, pivotY, 3 * dpr, 0, Math.PI * 2); gCtx.fill();
+
+          if (calibFrames < CALIB_FRAMES) {
+            gCtx.fillStyle = 'rgba(0,0,0,0.55)';
+            gCtx.fillRect(0, 0, w, h);
+            gCtx.fillStyle = 'rgba(255,255,255,0.92)';
+            gCtx.font = '700 ' + (15 * dpr) + 'px Roboto, sans-serif';
+            gCtx.textAlign = 'center';
+            gCtx.fillText('CALIBRATING — KEEP STILL', w / 2, h / 2 - 14 * dpr);
+            gCtx.fillStyle = 'rgba(255,255,255,0.18)';
+            gCtx.fillRect(w / 2 - 110 * dpr, h / 2, 220 * dpr, 5 * dpr);
+            gCtx.fillStyle = '#bc122a';
+            gCtx.fillRect(w / 2 - 110 * dpr, h / 2, 220 * dpr * (calibFrames / CALIB_FRAMES), 5 * dpr);
+            gCtx.textAlign = 'start';
+          }
+
+          requestAnimationFrame(gameLoop);
+        }
+
+        gCtx.fillStyle = '#0c0c0e';
+        gCtx.fillRect(0, 0, gCanvas.width, gCanvas.height);
       }
 
       /* ============ PHONE ============ */
@@ -879,6 +1378,9 @@
         let osc = null;
         let toneGain = null;
         let conn = null;
+        let carrierOsc = null;
+        let carrierGain = null;
+        const carrierState = { play: false, freq: 19000 };
 
         const state = { play: false, freq: 440, gain: 0.08 };
         phoneFreqSlider.value = freqToSlider(state.freq);
@@ -909,6 +1411,31 @@
             toneGain.disconnect();
             osc = null;
             toneGain = null;
+          }
+        }
+
+        function applyCarrier() {
+          if (!audioCtx) return;
+          if (carrierState.play) {
+            if (!carrierOsc) {
+              carrierOsc = audioCtx.createOscillator();
+              carrierOsc.type = 'sine';
+              carrierGain = audioCtx.createGain();
+              carrierGain.gain.value = 0;
+              carrierOsc.connect(carrierGain).connect(audioCtx.destination);
+              carrierOsc.start();
+              carrierGain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.3);
+            }
+            carrierOsc.frequency.setTargetAtTime(carrierState.freq, audioCtx.currentTime, 0.01);
+          } else if (carrierOsc) {
+            const o = carrierOsc, g = carrierGain;
+            try {
+              g.gain.cancelScheduledValues(audioCtx.currentTime);
+              g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+              o.stop(audioCtx.currentTime + 0.15);
+            } catch (e) {}
+            carrierOsc = null;
+            carrierGain = null;
           }
         }
 
@@ -971,14 +1498,22 @@
                 broadcast();
               });
               conn.on('data', (cmd) => {
-                if (cmd && cmd.type === 'tone') applyRemote(cmd);
+                if (!cmd) return;
+                if (cmd.type === 'tone') applyRemote(cmd);
+                else if (cmd.type === 'carrier') {
+                  carrierState.play = !!cmd.play;
+                  if (cmd.freq != null && isFinite(+cmd.freq)) carrierState.freq = +cmd.freq;
+                  applyCarrier();
+                }
               });
               conn.on('close', () => {
                 phoneStatus.textContent = 'Disconnected.';
                 phoneStatus.classList.remove('ok');
                 state.play = false;
+                carrierState.play = false;
                 updateUI();
                 applyAudio();
+                applyCarrier();
                 showReconnect();
               });
               conn.on('error', (err) => {
