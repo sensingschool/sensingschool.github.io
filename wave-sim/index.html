@@ -177,6 +177,19 @@
       .canvas-wrap.draw-cursor { cursor: crosshair; }
       .canvas-wrap.erase-cursor { cursor: cell; }
       .canvas-wrap.dragging { cursor: grabbing; }
+      .canvas-wrap.passive { cursor: default; touch-action: auto; }
+      .view-label {
+        position: absolute;
+        top: 10px;
+        left: 12px;
+        font-size: 11px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: rgba(255,255,255,0.75);
+        font-weight: 700;
+        pointer-events: none;
+        z-index: 2;
+      }
       canvas {
         position: absolute;
         inset: 0;
@@ -309,15 +322,53 @@
           <label for="brightSlider" style="margin-left: 8px;">Brightness</label>
           <input type="range" id="brightSlider" min="0.5" max="6" step="0.1" value="2.5" />
         </div>
+        <div class="row">
+          <label>View</label>
+          <div class="tools" role="radiogroup" aria-label="View mode">
+            <button class="tool-btn view-btn" data-view="wave">Wave</button>
+            <button class="tool-btn view-btn" data-view="rssi">RSSI map</button>
+            <button class="tool-btn view-btn active" data-view="both">Both</button>
+          </div>
+          <button id="resetAvgBtn" class="secondary">Reset average</button>
+        </div>
+        <div class="row" id="rssiRow">
+          <label for="granSel">Granularity</label>
+          <select id="granSel">
+            <option value="1">Full (1 cell)</option>
+            <option value="4" selected>Medium (4 cells)</option>
+            <option value="10">Coarse (10 cells)</option>
+            <option value="20">Survey (20 cells)</option>
+          </select>
+          <label for="refSel" style="margin-left: 8px;">Reference</label>
+          <select id="refSel">
+            <option value="auto" selected>Auto-peak (relative)</option>
+            <option value="source">Source level (path loss)</option>
+            <option value="fixed">Fixed (0 dB = 1.0)</option>
+          </select>
+          <label for="rangeSel" style="margin-left: 8px;">Range</label>
+          <select id="rangeSel">
+            <option value="20">20 dB</option>
+            <option value="40" selected>40 dB</option>
+            <option value="60">60 dB</option>
+            <option value="80">80 dB</option>
+          </select>
+        </div>
       </section>
 
       <section class="panel">
         <h2>Simulation</h2>
         <div class="canvas-wrap" id="wrap">
+          <span class="view-label" id="viewLabel1">Wave</span>
           <canvas id="field"></canvas>
           <canvas id="overlay"></canvas>
-          <span class="legend"><span class="swatch"></span><span>− pressure&nbsp;&nbsp;0&nbsp;&nbsp;+ pressure</span></span>
+          <span class="legend"><span class="swatch" id="legendSwatch"></span><span id="legendText">− pressure&nbsp;&nbsp;0&nbsp;&nbsp;+ pressure</span></span>
           <span class="hint" id="hint">Drag the source to move</span>
+        </div>
+        <div class="canvas-wrap passive" id="wrap2" style="margin-top: 12px;">
+          <span class="view-label">RSSI</span>
+          <canvas id="field2"></canvas>
+          <canvas id="overlay2"></canvas>
+          <span class="legend"><span class="swatch" id="legendSwatch2"></span><span id="legendText2">−40 dB&nbsp;&nbsp;←——→&nbsp;&nbsp;0 dB</span></span>
         </div>
         <div class="row" style="margin-top: 16px;">
           <div class="col">
@@ -373,6 +424,8 @@
       let pNext = new Float32Array(W * H);
       let wall  = new Uint8Array(W * H);
       let damp  = new Float32Array(W * H);   // multiplicative damping per cell
+      let intensity = new Float32Array(W * H); // EMA of p² for RSSI map
+      const INTENSITY_ALPHA = 0.008;            // ~125-step time constant (~1 s at 60 fps × 2 substeps)
 
       let sources = [];
       let pulses = [];                       // {x, y, t0, sigma, amp}
@@ -400,8 +453,11 @@
 
       function clearField() {
         p.fill(0); pPrev.fill(0); pNext.fill(0);
+        intensity.fill(0);
         stepCount = 0;
       }
+
+      function resetIntensity() { intensity.fill(0); }
 
       function clearWalls() { wall.fill(0); }
 
@@ -458,6 +514,15 @@
         pPrev = p;
         p = pNext;
         pNext = tmp;
+
+        // exponential moving average of p² → time-averaged intensity (drives the RSSI map).
+        // This is essentially a per-cell low-pass on instantaneous power.
+        const a = INTENSITY_ALPHA;
+        const oneMinus = 1 - a;
+        for (let i = 0; i < W * H; i++) {
+          const v = p[i];
+          intensity[i] = oneMinus * intensity[i] + a * v * v;
+        }
       }
 
       // -------------------- presets --------------------
@@ -540,11 +605,16 @@
       }
 
       // -------------------- rendering --------------------
-      const fieldCanvas   = document.getElementById('field');
-      const overlayCanvas = document.getElementById('overlay');
-      const wrap          = document.getElementById('wrap');
-      const fieldCtx      = fieldCanvas.getContext('2d');
-      const overlayCtx    = overlayCanvas.getContext('2d');
+      const fieldCanvas    = document.getElementById('field');
+      const overlayCanvas  = document.getElementById('overlay');
+      const wrap           = document.getElementById('wrap');
+      const fieldCtx       = fieldCanvas.getContext('2d');
+      const overlayCtx     = overlayCanvas.getContext('2d');
+      const fieldCanvas2   = document.getElementById('field2');
+      const overlayCanvas2 = document.getElementById('overlay2');
+      const wrap2          = document.getElementById('wrap2');
+      const fieldCtx2      = fieldCanvas2.getContext('2d');
+      const overlayCtx2    = overlayCanvas2.getContext('2d');
 
       // small offscreen canvas at simulation resolution; we then drawImage-scale to display size.
       const small = document.createElement('canvas');
@@ -552,18 +622,46 @@
       const smallCtx = small.getContext('2d');
       const imgData = smallCtx.createImageData(W, H);
 
-      function resize() {
-        const rect = wrap.getBoundingClientRect();
+      function resizeOne(wrapEl, canvases) {
+        if (wrapEl.style.display === 'none') return;
+        const rect = wrapEl.getBoundingClientRect();
         const dpr = window.devicePixelRatio || 1;
-        for (const c of [fieldCanvas, overlayCanvas]) {
+        for (const c of canvases) {
           c.width = Math.round(rect.width * dpr);
           c.height = Math.round(rect.height * dpr);
         }
       }
+      function resize() {
+        resizeOne(wrap,  [fieldCanvas,  overlayCanvas]);
+        resizeOne(wrap2, [fieldCanvas2, overlayCanvas2]);
+      }
       window.addEventListener('resize', resize);
 
-      function render() {
-        const data = imgData.data;
+      // RSSI thermal colormap LUT: navy → blue → cyan → yellow → red
+      const RSSI_LUT_R = new Uint8Array(256);
+      const RSSI_LUT_G = new Uint8Array(256);
+      const RSSI_LUT_B = new Uint8Array(256);
+      (function buildRssiLut() {
+        const stops = [
+          [12,  16,  60],
+          [40,  70,  180],
+          [60,  180, 200],
+          [240, 200, 60],
+          [220, 50,  50],
+        ];
+        const n = stops.length - 1;
+        for (let k = 0; k < 256; k++) {
+          const f = (k / 255) * n;
+          const i = Math.min(n - 1, f | 0);
+          const u = f - i;
+          const a = stops[i], b = stops[i + 1];
+          RSSI_LUT_R[k] = (a[0] + (b[0] - a[0]) * u) | 0;
+          RSSI_LUT_G[k] = (a[1] + (b[1] - a[1]) * u) | 0;
+          RSSI_LUT_B[k] = (a[2] + (b[2] - a[2]) * u) | 0;
+        }
+      })();
+
+      function renderWaveInto(data) {
         const scale = parseFloat(brightSlider.value);
         for (let i = 0; i < W * H; i++) {
           if (wall[i]) {
@@ -577,12 +675,10 @@
           if (v > 1) v = 1; else if (v < -1) v = -1;
           let r, g, b;
           if (v >= 0) {
-            // black -> red
             r = 12 + (220 - 12) * v;
             g = 14 + (50 - 14) * v;
             b = 18 + (60 - 18) * v;
           } else {
-            // black -> blue
             const a = -v;
             r = 12 + (40 - 12) * a;
             g = 14 + (110 - 14) * a;
@@ -593,35 +689,139 @@
           data[i * 4 + 2] = b;
           data[i * 4 + 3] = 255;
         }
+      }
+
+      function renderRssiInto(data) {
+        const bw = parseInt(granSel.value, 10) || 1;
+        const cw = Math.ceil(W / bw);
+        const ch = Math.ceil(H / bw);
+        // Bin-average intensity (excluding wall cells) into a coarser grid.
+        const binSum = new Float32Array(cw * ch);
+        const binCnt = new Float32Array(cw * ch);
+        for (let j = 0; j < H; j++) {
+          const bj = (j / bw) | 0;
+          const bjRow = bj * cw;
+          const row = j * W;
+          for (let i = 0; i < W; i++) {
+            if (wall[row + i]) continue;
+            const bi = (i / bw) | 0;
+            const k = bjRow + bi;
+            binSum[k] += intensity[row + i];
+            binCnt[k] += 1;
+          }
+        }
+        const binAvg = new Float32Array(cw * ch);
+        for (let k = 0; k < cw * ch; k++) {
+          binAvg[k] = binCnt[k] > 0 ? binSum[k] / binCnt[k] : 0;
+        }
+
+        // Reference power.
+        let ref;
+        if (refSel.value === 'auto') {
+          ref = 1e-12;
+          for (let k = 0; k < cw * ch; k++) if (binAvg[k] > ref) ref = binAvg[k];
+        } else if (refSel.value === 'source') {
+          // For a steady sin source of amplitude A, ⟨p²⟩ = A²/2 at the source cell.
+          let maxA2 = 0;
+          for (const s of sources) {
+            const a2 = s.amp * s.amp * 0.5;
+            if (a2 > maxA2) maxA2 = a2;
+          }
+          ref = maxA2 > 0 ? maxA2 : 1.0;
+        } else {
+          ref = 1.0;
+        }
+        const invRef = 1 / ref;
+        const rangeDb = parseFloat(rangeSel.value);
+        const invRange = 1 / rangeDb;
+
+        // Pre-compute LUT index per bin for speed.
+        const binLut = new Uint16Array(cw * ch);
+        const log10 = Math.log10;
+        for (let k = 0; k < cw * ch; k++) {
+          if (binCnt[k] === 0) { binLut[k] = 0xffff; continue; } // sentinel for wall-only bin
+          const ratio = binAvg[k] * invRef;
+          const db = 10 * log10(ratio < 1e-12 ? 1e-12 : ratio);
+          let t = 1 + db * invRange;
+          if (t < 0) t = 0; else if (t > 1) t = 1;
+          binLut[k] = (t * 255) | 0;
+        }
+
+        for (let j = 0; j < H; j++) {
+          const bj = (j / bw) | 0;
+          const bjRow = bj * cw;
+          const row = j * W;
+          for (let i = 0; i < W; i++) {
+            const idx = row + i;
+            if (wall[idx]) {
+              data[idx * 4]     = 70;
+              data[idx * 4 + 1] = 72;
+              data[idx * 4 + 2] = 80;
+              data[idx * 4 + 3] = 255;
+              continue;
+            }
+            const bi = (i / bw) | 0;
+            const li = binLut[bjRow + bi];
+            if (li === 0xffff) {
+              data[idx * 4]     = 12;
+              data[idx * 4 + 1] = 14;
+              data[idx * 4 + 2] = 18;
+              data[idx * 4 + 3] = 255;
+              continue;
+            }
+            data[idx * 4]     = RSSI_LUT_R[li];
+            data[idx * 4 + 1] = RSSI_LUT_G[li];
+            data[idx * 4 + 2] = RSSI_LUT_B[li];
+            data[idx * 4 + 3] = 255;
+          }
+        }
+      }
+
+      function paintTo(targetCtx, mode) {
+        const data = imgData.data;
+        if (mode === 'rssi') renderRssiInto(data);
+        else                  renderWaveInto(data);
         smallCtx.putImageData(imgData, 0, 0);
+        targetCtx.imageSmoothingEnabled = true;
+        targetCtx.imageSmoothingQuality = 'high';
+        targetCtx.drawImage(small, 0, 0, targetCtx.canvas.width, targetCtx.canvas.height);
+      }
 
-        fieldCtx.imageSmoothingEnabled = true;
-        fieldCtx.imageSmoothingQuality = 'high';
-        fieldCtx.drawImage(small, 0, 0, fieldCanvas.width, fieldCanvas.height);
-
-        // overlay: source markers & hover ring
-        const ctx = overlayCtx;
-        const cw = overlayCanvas.width;
-        const ch = overlayCanvas.height;
+      function drawSourceMarkers(ctx, interactive) {
+        const cw = ctx.canvas.width;
+        const ch = ctx.canvas.height;
         const sx = cw / W;
         const sy = ch / H;
+        const dpr = window.devicePixelRatio || 1;
         ctx.clearRect(0, 0, cw, ch);
-        ctx.lineWidth = Math.max(1.2, 1.4 * (window.devicePixelRatio || 1));
+        ctx.lineWidth = Math.max(1.2, 1.4 * dpr);
         for (let k = 0; k < sources.length; k++) {
           const s = sources[k];
           const cx = s.x * sx;
           const cy = s.y * sy;
-          ctx.strokeStyle = (k === hoverSrc || k === draggedSrc)
+          ctx.strokeStyle = (interactive && (k === hoverSrc || k === draggedSrc))
             ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.55)';
-          ctx.beginPath(); ctx.arc(cx, cy, 7 * (window.devicePixelRatio || 1), 0, Math.PI * 2); ctx.stroke();
+          ctx.beginPath(); ctx.arc(cx, cy, 7 * dpr, 0, Math.PI * 2); ctx.stroke();
           ctx.fillStyle = 'rgba(232,185,35,0.95)';
-          ctx.beginPath(); ctx.arc(cx, cy, 2.5 * (window.devicePixelRatio || 1), 0, Math.PI * 2); ctx.fill();
+          ctx.beginPath(); ctx.arc(cx, cy, 2.5 * dpr, 0, Math.PI * 2); ctx.fill();
+        }
+      }
+
+      function render() {
+        if (viewMode === 'both') {
+          paintTo(fieldCtx,  'wave');
+          paintTo(fieldCtx2, 'rssi');
+          drawSourceMarkers(overlayCtx,  true);
+          drawSourceMarkers(overlayCtx2, false);
+        } else {
+          paintTo(fieldCtx, viewMode);
+          drawSourceMarkers(overlayCtx, true);
         }
       }
 
       // -------------------- input --------------------
       const wrapEl = wrap;
-      const tools = Array.from(document.querySelectorAll('.tool-btn'));
+      const tools = Array.from(document.querySelectorAll('.tool-btn[data-tool]'));
       let tool = 'drag';
       let hoverSrc = -1;
       let draggedSrc = -1;
@@ -751,10 +951,62 @@
       const playBtn      = document.getElementById('playBtn');
       const resetBtn     = document.getElementById('resetBtn');
       const clearWallsBtn= document.getElementById('clearWallsBtn');
+      const resetAvgBtn  = document.getElementById('resetAvgBtn');
+      const granSel      = document.getElementById('granSel');
+      const refSel       = document.getElementById('refSel');
+      const rangeSel     = document.getElementById('rangeSel');
+      const rssiRow      = document.getElementById('rssiRow');
+      const viewBtns      = Array.from(document.querySelectorAll('.view-btn'));
+      const legendSwatch  = document.getElementById('legendSwatch');
+      const legendText    = document.getElementById('legendText');
+      const legendSwatch2 = document.getElementById('legendSwatch2');
+      const legendText2   = document.getElementById('legendText2');
+      const viewLabel1    = document.getElementById('viewLabel1');
       const stepStat     = document.getElementById('stepStat');
       const srcStat      = document.getElementById('srcStat');
       const gridStat     = document.getElementById('gridStat');
       gridStat.textContent = `${W} × ${H}`;
+
+      let viewMode = 'both';
+      const WAVE_GRADIENT =
+        'linear-gradient(90deg, rgb(40,110,235) 0%, rgb(20,25,35) 50%, rgb(220,50,60) 100%)';
+      const RSSI_GRADIENT =
+        'linear-gradient(90deg, rgb(12,16,60) 0%, rgb(40,70,180) 25%, rgb(60,180,200) 50%, rgb(240,200,60) 75%, rgb(220,50,50) 100%)';
+
+      const RSSI_LEGEND_TEXT = () => `−${rangeSel.value} dB&nbsp;&nbsp;←——→&nbsp;&nbsp;0 dB`;
+      const WAVE_LEGEND_TEXT = '− pressure&nbsp;&nbsp;0&nbsp;&nbsp;+ pressure';
+
+      function refreshLegend() {
+        if (viewMode === 'both') {
+          legendSwatch.style.background  = WAVE_GRADIENT;
+          legendText.innerHTML           = WAVE_LEGEND_TEXT;
+          legendSwatch2.style.background = RSSI_GRADIENT;
+          legendText2.innerHTML          = RSSI_LEGEND_TEXT();
+        } else if (viewMode === 'rssi') {
+          legendSwatch.style.background = RSSI_GRADIENT;
+          legendText.innerHTML          = RSSI_LEGEND_TEXT();
+        } else {
+          legendSwatch.style.background = WAVE_GRADIENT;
+          legendText.innerHTML          = WAVE_LEGEND_TEXT;
+        }
+      }
+
+      function setView(v) {
+        viewMode = v;
+        for (const b of viewBtns) b.classList.toggle('active', b.dataset.view === v);
+        rssiRow.style.display = (v === 'rssi' || v === 'both') ? '' : 'none';
+        wrap2.style.display   = (v === 'both') ? '' : 'none';
+        viewLabel1.style.display = (v === 'both') ? '' : 'none';
+        viewLabel1.textContent = 'Wave';
+        refreshLegend();
+        // The hidden wrap had zero size; size its canvases now that it's visible.
+        resize();
+      }
+      for (const b of viewBtns) b.addEventListener('click', () => setView(b.dataset.view));
+      granSel.addEventListener('change', () => {});
+      refSel.addEventListener('change', () => {});
+      rangeSel.addEventListener('change', refreshLegend);
+      resetAvgBtn.addEventListener('click', resetIntensity);
 
       function updateLambda() {
         const f = parseFloat(freqSlider.value);
@@ -816,6 +1068,7 @@
       updateLambda();
       setPreset(presetSel.value);
       updateStats();
+      refreshLegend();
       playBtn.classList.add('danger');
       requestAnimationFrame(frame);
     </script>
