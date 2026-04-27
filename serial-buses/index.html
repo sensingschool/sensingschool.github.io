@@ -1,0 +1,1354 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Serial buses &middot; Sensing Studio</title>
+    <link rel="icon" type="image/svg+xml" href="../favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet" />
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-XTHNL4559K"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-XTHNL4559K');
+    </script>
+    <style>
+      :root {
+        --red: #bc122a;
+        --black: #111;
+        --grey-line: #dee2e6;
+        --grey-text: #5b6068;
+        --bg: #fafafa;
+        --green: #2a8b2a;
+        --gold: #E8B923;
+        --blue: #1f6feb;
+        --orange: #d97c2a;
+        --purple: #6b2db5;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: 'Roboto', Helvetica, Arial, sans-serif;
+        background: var(--bg);
+        color: var(--black);
+        -webkit-font-smoothing: antialiased;
+      }
+      header {
+        padding: 20px 32px;
+        border-bottom: 1px solid var(--grey-line);
+        display: flex;
+        align-items: center;
+        gap: 16px;
+      }
+      header a.brand {
+        color: var(--black);
+        text-decoration: none;
+        font-weight: 900;
+        font-size: 18px;
+        letter-spacing: -0.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      header a.brand .red { color: var(--red); }
+      header a.brand svg.logo { width: 28px; height: 28px; flex: 0 0 auto; }
+      header .crumb {
+        color: var(--grey-text);
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+      }
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 32px;
+      }
+      h1 {
+        font-weight: 900;
+        font-size: clamp(28px, 4vw, 40px);
+        margin: 0 0 8px;
+        letter-spacing: -0.5px;
+      }
+      p.lead {
+        color: var(--grey-text);
+        margin: 0 0 28px;
+        max-width: 64ch;
+        line-height: 1.5;
+      }
+      .panel {
+        background: #fff;
+        border: 1px solid var(--grey-line);
+        border-radius: 12px;
+        padding: 24px 28px;
+        margin-bottom: 18px;
+      }
+      .panel h3 {
+        margin: 0 0 12px;
+        font-size: 12px;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+        font-weight: 700;
+      }
+      .help { font-size: 14px; color: var(--black); line-height: 1.55; }
+      .help p { margin: 0 0 10px; color: var(--grey-text); }
+      .help p b { color: var(--black); }
+      .help ol { margin: 0; padding-left: 22px; color: var(--grey-text); }
+      .help li { margin: 6px 0; }
+      .help li b { color: var(--black); }
+      .help code, .mono {
+        background: #eef0f2;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 13px;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+      }
+
+      /* Protocol tabs */
+      .proto-tabs {
+        display: flex;
+        gap: 0;
+        border: 1.5px solid var(--grey-line);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      .proto-tabs button {
+        flex: 1;
+        background: #fff;
+        border: none;
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 14px;
+        padding: 12px 18px;
+        cursor: pointer;
+        color: var(--black);
+        transition: background 0.15s, color 0.15s;
+        letter-spacing: 0.5px;
+      }
+      .proto-tabs button + button { border-left: 1px solid var(--grey-line); }
+      .proto-tabs button .sub {
+        display: block;
+        font-weight: 400;
+        font-size: 11px;
+        color: var(--grey-text);
+        letter-spacing: 0.4px;
+        margin-top: 2px;
+        text-transform: none;
+      }
+      .proto-tabs button.active { background: var(--red); color: #fff; }
+      .proto-tabs button.active .sub { color: #fff5f7; }
+
+      .input-row {
+        display: flex;
+        gap: 10px;
+        align-items: stretch;
+        flex-wrap: wrap;
+      }
+      .input-row input.hex {
+        flex: 1;
+        min-width: 180px;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+        font-size: 14px;
+        padding: 11px 12px;
+        border: 1.5px solid var(--grey-line);
+        border-radius: 8px;
+        background: #fff;
+        letter-spacing: 0.5px;
+      }
+      .input-row input.hex:focus { outline: 2px solid var(--red); border-color: var(--red); }
+      .input-row input.hex.invalid { border-color: var(--red); background: #fff1f3; }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .field-label {
+        font-size: 10px;
+        letter-spacing: 1.2px;
+        text-transform: uppercase;
+        color: var(--grey-text);
+        font-weight: 700;
+      }
+      .err {
+        margin-top: 10px;
+        color: var(--red);
+        font-size: 13px;
+        font-weight: 700;
+        min-height: 1.2em;
+      }
+
+      .presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .chip-btn {
+        background: #fff;
+        border: 1.5px solid var(--grey-line);
+        border-radius: 999px;
+        padding: 6px 14px;
+        font-family: inherit;
+        font-size: 12.5px;
+        font-weight: 700;
+        color: var(--black);
+        cursor: pointer;
+        transition: border-color 0.15s, color 0.15s, background 0.15s;
+      }
+      .chip-btn:hover { border-color: var(--red); color: var(--red); }
+      .chip-btn.active { background: var(--red); color: #fff; border-color: var(--red); }
+
+      .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+        color: var(--grey-text);
+      }
+      .toggle-row label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+      .toggle-row input[type=checkbox] { accent-color: var(--red); width: 16px; height: 16px; }
+      .toggle-row label b { color: var(--black); font-weight: 700; }
+
+      .mode-seg {
+        display: inline-flex;
+        border: 1.5px solid var(--grey-line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      .mode-seg button {
+        background: #fff;
+        border: none;
+        font-family: ui-monospace, Menlo, monospace;
+        font-weight: 700;
+        font-size: 12px;
+        padding: 7px 12px;
+        cursor: pointer;
+        color: var(--black);
+      }
+      .mode-seg button + button { border-left: 1px solid var(--grey-line); }
+      .mode-seg button.active { background: var(--red); color: #fff; }
+
+      .scroll-x {
+        overflow-x: auto;
+        margin: 0 -4px;
+        padding: 4px;
+      }
+      svg.viz {
+        display: block;
+        height: auto;
+        font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+      }
+
+      .legend {
+        font-size: 12px;
+        color: var(--grey-text);
+        margin-top: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px 18px;
+        align-items: center;
+        line-height: 1.5;
+      }
+      .swatch {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border-radius: 3px;
+        margin-right: 6px;
+        vertical-align: middle;
+        border: 1px solid var(--grey-line);
+      }
+      .swatch.line {
+        height: 3px;
+        border-radius: 0;
+        border: none;
+      }
+
+      .annot-callout {
+        font-size: 13px;
+        line-height: 1.5;
+        color: var(--black);
+        background: #f5f3ff;
+        border: 1px solid #ddd6fe;
+        border-left: 3px solid var(--purple);
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin-top: 14px;
+        display: none;
+      }
+      .annot-callout.visible { display: block; }
+      .annot-callout b { color: var(--purple); }
+
+      details summary {
+        cursor: pointer;
+        font-weight: 700;
+        font-size: 13px;
+        letter-spacing: 0.5px;
+        color: var(--grey-text);
+        margin-top: 12px;
+      }
+      details summary:hover { color: var(--black); }
+      details p { margin-top: 8px; color: var(--grey-text); line-height: 1.55; font-size: 14px; }
+
+      .stack-gap > * + * { margin-top: 14px; }
+
+      .attribution {
+        margin-top: 48px; padding-top: 24px;
+        border-top: 1px solid var(--grey-line);
+        width: 100%; font-size: 13px; letter-spacing: 0.5px;
+        color: var(--grey-text); display: flex;
+        align-items: center; justify-content: center; gap: 8px;
+      }
+      .attribution a {
+        display: inline-flex; align-items: center; gap: 8px;
+        color: var(--black); text-decoration: none; font-weight: 700;
+        transition: color 0.15s, opacity 0.15s;
+      }
+      .attribution a img { width: 22px; height: 22px; border-radius: 4px; display: block; }
+      .attribution a:hover { color: var(--red); }
+      .attribution a:hover img { opacity: 0.85; }
+    </style>
+  </head>
+  <body>
+    <header data-nav data-crumb="Serial buses"></header>
+    <script src="../nav.js" defer></script>
+
+    <main>
+      <h1>Serial buses &mdash; UART, I&sup2;C, SPI</h1>
+      <p class="lead">Three protocols solving the same problem &mdash; ship a byte over a wire &mdash; with three very different sets of trade-offs. Pick a protocol, type a byte, watch it move. Toggle <b>driver view</b> for I&sup2;C to see <i>who</i> is pulling each line low: that one mental model unlocks ACK, NACK, clock stretching, and arbitration all at once.</p>
+
+      <div class="panel">
+        <h3>Protocol</h3>
+        <div class="proto-tabs" id="proto-tabs">
+          <button data-proto="uart"><span>UART</span><span class="sub">async, 1 wire each way</span></button>
+          <button data-proto="i2c"><span>I&sup2;C</span><span class="sub">synchronous, open-drain, addressed</span></button>
+          <button data-proto="spi"><span>SPI</span><span class="sub">synchronous, push-pull, chip-select</span></button>
+        </div>
+      </div>
+
+      <div class="panel stack-gap">
+        <div class="input-row">
+          <div class="field" style="flex:1;min-width:180px">
+            <span class="field-label">Byte to send</span>
+            <input id="byte-input" class="hex" type="text" value="4A" spellcheck="false" autocomplete="off" maxlength="6" />
+          </div>
+          <div class="field" id="addr-field" style="flex:1;min-width:180px;display:none">
+            <span class="field-label">7-bit slave address</span>
+            <input id="addr-input" class="hex" type="text" value="68" spellcheck="false" autocomplete="off" maxlength="6" />
+          </div>
+          <div class="field" id="mode-field" style="display:none">
+            <span class="field-label">SPI mode (CPOL,CPHA)</span>
+            <div class="mode-seg" id="mode-seg">
+              <button data-mode="0" class="active">0 (0,0)</button>
+              <button data-mode="1">1 (0,1)</button>
+              <button data-mode="2">2 (1,0)</button>
+              <button data-mode="3">3 (1,1)</button>
+            </div>
+          </div>
+        </div>
+        <div class="err" id="err-msg"></div>
+
+        <div>
+          <span class="field-label" style="display:block;margin-bottom:8px">Scenario</span>
+          <div class="presets" id="presets"></div>
+        </div>
+
+        <div class="toggle-row" id="driver-toggle-row" style="display:none">
+          <label><input type="checkbox" id="driver-toggle" /> <b>Driver view</b> &mdash; show what each side is pulling, plus the wired-AND result on the bus</label>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Timing diagram</h3>
+        <div class="scroll-x"><svg class="viz" id="wave-svg" aria-label="Protocol timing diagram"></svg></div>
+        <div class="legend" id="legend"></div>
+        <div class="annot-callout" id="annot-callout"></div>
+      </div>
+
+      <div class="panel help" id="explain-panel">
+        <!-- per-protocol explanation injected here -->
+      </div>
+
+      <footer class="attribution">
+        Created by
+        <a href="https://semanticsignals.com" target="_blank" rel="noopener">
+          <img src="../semanticsignals-logo.png" alt="" />
+          <span>Semantic Signals</span>
+        </a>
+      </footer>
+    </main>
+
+    <script>
+      const SVG_NS = 'http://www.w3.org/2000/svg';
+      const $ = (id) => document.getElementById(id);
+
+      // ---------------------------------------------------------------
+      // Trace primitives
+      // ---------------------------------------------------------------
+      // A "line" carries a state per slot. State is one of:
+      //   0  — actively driven low
+      //   1  — actively driven high (push-pull) OR pulled high by pull-up (open-drain)
+      //   'z' — released (only meaningful for open-drain; equivalent to 1 on the bus)
+      //
+      // For each line we may track up to 3 layers:
+      //   master[]  — what the master side is driving (0 / 1 / 'z')
+      //   slave[]   — what the slave side is driving  (0 / 1 / 'z')
+      //   bus[]     — resulting bus level (0 / 1)
+      //
+      // For push-pull lines, only one driver is meaningful and bus = that driver.
+      // For open-drain, bus = wired-AND: 0 if any driver is 0, else 1.
+
+      const SLOT_PX  = 5;   // horizontal pixels per slot
+      const BIT_SLOTS = 8;  // slots per UART bit period or per SCL/SCK half-cycle
+
+      function busOf(masterArr, slaveArr, openDrain) {
+        const n = masterArr.length;
+        const out = new Array(n);
+        for (let i = 0; i < n; i++) {
+          const m = masterArr[i], s = slaveArr[i];
+          if (openDrain) {
+            // Open-drain wired-AND. A 'z' is "released" → pulled high by pull-up.
+            const ml = (m === 0) ? 0 : 1;
+            const sl = (s === 0) ? 0 : 1;
+            out[i] = (ml & sl);
+          } else {
+            // Push-pull: take whichever side is actively driving (master by default,
+            // slave for MISO). Caller pre-arranges by leaving the inactive side as 'z'.
+            if (m !== 'z') out[i] = m;
+            else if (s !== 'z') out[i] = s;
+            else out[i] = 1;
+          }
+        }
+        return out;
+      }
+
+      // Helper: emit `n` slots of a constant state into a target array.
+      function push(arr, val, n) { for (let i = 0; i < n; i++) arr.push(val); }
+
+      // Annotation: a labeled span over slots [start, end).
+      function annot(list, start, end, label, opts) {
+        list.push({ start, end, label, ...(opts || {}) });
+      }
+
+      // ---------------------------------------------------------------
+      // UART
+      // ---------------------------------------------------------------
+      // 8N1: 1 start bit (0), 8 data bits LSB-first, 1 stop bit (1). Idle = 1.
+      function buildUart(byteVal, scenario) {
+        const bits = [];
+        for (let i = 0; i < 8; i++) bits.push((byteVal >> i) & 1); // LSB first
+
+        const tx = [];        // master push-pull drive
+        const ann = [];       // phase annotations
+        const samples = [];   // receiver sample ticks
+        const idleLeft = 4;   // 4 slots of idle high before frame
+        const idleRight = 6;
+        push(tx, 1, idleLeft);
+
+        const startSlot = tx.length;
+
+        // START bit (0) for 1 bit period
+        push(tx, 0, BIT_SLOTS);
+        annot(ann, startSlot, startSlot + BIT_SLOTS, 'START', { color: 'var(--red)' });
+        // Receiver finds the falling edge, then samples at the centre of each
+        // following bit. Sample point at startSlot + 1.5*BIT_SLOTS would be the
+        // centre of bit 0; we mark every bit centre.
+        let cursor = startSlot + BIT_SLOTS;
+        bits.forEach((b, i) => {
+          push(tx, b, BIT_SLOTS);
+          annot(ann, cursor, cursor + BIT_SLOTS, 'b' + i);
+          samples.push({ slot: cursor + BIT_SLOTS / 2, label: String(b), color: 'var(--blue)' });
+          cursor += BIT_SLOTS;
+        });
+        // STOP bit (1)
+        push(tx, 1, BIT_SLOTS);
+        annot(ann, cursor, cursor + BIT_SLOTS, 'STOP', { color: 'var(--green)' });
+        cursor += BIT_SLOTS;
+        push(tx, 1, idleRight);
+
+        // Wrong-baud receiver: assume RX clock is X% off. Walk through the
+        // expected sample positions but at a drifted bit-period.
+        let wrongSamples = [];
+        let calloutText = null;
+        if (scenario === 'baud-mismatch') {
+          // RX thinks bit-period is 0.85 × actual. So it samples too quickly.
+          const rxBitSlots = BIT_SLOTS * 0.85;
+          let t = startSlot + BIT_SLOTS + rxBitSlots / 2; // first data-bit centre per RX
+          for (let i = 0; i < 8; i++) {
+            const slot = Math.round(t);
+            const sampledIdx = Math.floor((slot - startSlot) / BIT_SLOTS) - 1; // which actual bit slot we're inside
+            const correct = (sampledIdx >= 0 && sampledIdx < 8) ? bits[sampledIdx] : 1;
+            wrongSamples.push({ slot, label: String(correct), color: 'var(--orange)' });
+            t += rxBitSlots;
+          }
+          calloutText = '<b>Baud mismatch.</b> Receiver clock is 15% fast, so its sample points (orange) drift left of the bit centres. By bit 5–6 it samples inside the wrong bit and reads garbage. Both sides must agree on baud rate within ~2% to keep the last bit aligned.';
+        }
+        if (scenario === 'parity') {
+          calloutText = '<b>8N1 has no parity.</b> Switch to 8E1 (even parity) and the transmitter would insert one extra bit before STOP, set so the count of <code>1</code>s in data+parity is even. Receiver computes the same and rejects the byte if it disagrees. Catches single-bit errors but not double.';
+        }
+        if (scenario === 'framing') {
+          // Corrupt the stop bit
+          tx[cursor - BIT_SLOTS + 1] = 0; // dip the stop bit
+          calloutText = '<b>Framing error.</b> The stop bit is supposed to be high — when receiver samples it as low, the UART discards the byte and raises a framing-error flag. This is what happens if the transmitter starts a new byte without leaving stop time, or if line noise corrupts the boundary.';
+        }
+
+        const slots = tx.length;
+
+        return {
+          protocol: 'uart',
+          slots,
+          lines: [
+            { name: 'TX', master: tx, slave: new Array(slots).fill('z'), bus: tx, openDrain: false }
+          ],
+          annotations: ann,
+          samples: scenario === 'baud-mismatch' ? wrongSamples : samples,
+          extraSamples: scenario === 'baud-mismatch' ? samples : [],
+          calloutText,
+        };
+      }
+
+      // ---------------------------------------------------------------
+      // I2C — write of [addr|R/W=0] then optional data byte, then STOP.
+      // ---------------------------------------------------------------
+      // Bit layout per data bit: 4 slots SCL low (data may change), 4 slots SCL high (data stable).
+      // START: SDA falls while SCL high. STOP: SDA rises while SCL high.
+      function buildI2c(byteVal, addr, scenario) {
+        const HALF = 4; // half SCL period in slots (so bit period = 8 slots)
+
+        // SCL master / slave drives
+        const sclM = [], sclS = [];
+        const sdaM = [], sdaS = [];
+        // Optional second master for arbitration
+        const sdaM2 = [];
+        const ann = [];
+        let calloutText = null;
+
+        // Idle: both released (high)
+        const idleSlots = 6;
+        push(sclM, 'z', idleSlots); push(sclS, 'z', idleSlots);
+        push(sdaM, 'z', idleSlots); push(sdaS, 'z', idleSlots);
+        push(sdaM2, 'z', idleSlots);
+
+        let t = sclM.length;
+
+        // START condition: SDA falls while SCL stays high. Reserve 4 slots for the dip.
+        annot(ann, t, t + HALF, 'START', { color: 'var(--red)' });
+        push(sclM, 'z', HALF); push(sclS, 'z', HALF);
+        push(sdaM, 0, HALF);   push(sdaS, 'z', HALF);
+        push(sdaM2, 0, HALF);
+        t += HALF;
+        // After START, master pulls SCL low to begin clocking
+        // (data setup phase begins).
+
+        // Build the address frame: 7 address bits + R/W=0 + ACK slot
+        const addrBits = [];
+        for (let i = 6; i >= 0; i--) addrBits.push((addr >> i) & 1);
+        addrBits.push(0); // R/W = 0 (write)
+
+        // Decide arbitration scenario: a second master sends a different address.
+        // Convention: ours sends `addr`; the other master sends `addr ^ 0x05`
+        // (differs at some lower bit). Whichever master first tries to drive 1
+        // while bus reads 0 backs off. We model both — the comparison line
+        // is sdaM2 vs sdaM; bus = wired-AND of both.
+        let other = null;
+        if (scenario === 'arbitration') {
+          other = (addr ^ 0x05) & 0x7F;
+          const otherBits = [];
+          for (let i = 6; i >= 0; i--) otherBits.push((other >> i) & 1);
+          otherBits.push(0);
+          // We'll process bit-by-bit and back off as needed.
+          var arbState = { ourLost: false, theirLost: false, lostAtBit: -1, otherBits };
+        }
+
+        for (let bi = 0; bi < addrBits.length; bi++) {
+          const b = addrBits[bi];
+          // Phase 1: SCL low, data line set up
+          annot(ann, t, t + HALF * 2, bi === 7 ? 'R/W' : 'A' + (6 - bi));
+          push(sclM, 0, HALF); push(sclS, 'z', HALF);
+          // Master drives SDA to b. Open-drain encoding: 0 → pull low, 1 → release.
+          // After we've lost arbitration, we release entirely (z) and become a receiver.
+          const ourLost = scenario === 'arbitration' && arbState.ourLost;
+          push(sdaM, ourLost ? 'z' : (b ? 'z' : 0), HALF);
+          push(sdaS, 'z', HALF);
+          // Other master, if present and not yet lost, drives its bit
+          if (scenario === 'arbitration') {
+            const ob = arbState.otherBits[bi];
+            push(sdaM2, arbState.theirLost ? 'z' : (ob ? 'z' : 0), HALF);
+          } else {
+            push(sdaM2, 'z', HALF);
+          }
+          t += HALF;
+          // Phase 2: SCL high, data stable. Bus value of SDA is what is "seen".
+          push(sclM, 'z', HALF); push(sclS, 'z', HALF);
+          push(sdaM, ourLost ? 'z' : (b ? 'z' : 0), HALF);
+          push(sdaS, 'z', HALF);
+          if (scenario === 'arbitration') {
+            const ob = arbState.otherBits[bi];
+            push(sdaM2, arbState.theirLost ? 'z' : (ob ? 'z' : 0), HALF);
+            // Update arbitration state at end of phase 2 (after sample). If our drive=1 (z)
+            // and other drives 0, we lose at this bit (and vice versa).
+            const ourDrive   = arbState.ourLost   ? 1 : b;
+            const theirDrive = arbState.theirLost ? 1 : ob;
+            if (!arbState.ourLost && !arbState.theirLost) {
+              if (ourDrive === 1 && theirDrive === 0) {
+                arbState.ourLost = true; arbState.lostAtBit = bi;
+              } else if (theirDrive === 1 && ourDrive === 0) {
+                arbState.theirLost = true; arbState.lostAtBit = bi;
+              }
+            }
+          }
+          t += HALF;
+        }
+
+        // ACK slot: master releases SDA, slave should pull it low.
+        const ackStart = t;
+        annot(ann, t, t + HALF * 2, 'ACK', { color: 'var(--green)' });
+        push(sclM, 0, HALF); push(sclS, 'z', HALF);
+        push(sdaM, 'z', HALF);
+        // For NACK scenario, slave does NOT pull. For all others, slave acks.
+        const slaveAcks = (scenario !== 'nack');
+        push(sdaS, slaveAcks ? 0 : 'z', HALF);
+        push(sdaM2, 'z', HALF);
+        t += HALF;
+        // Clock stretching: after master tries to release SCL high to start the
+        // ACK clock pulse, the slave keeps holding SCL low for an extended period.
+        if (scenario === 'clock-stretch') {
+          const stretchSlots = HALF * 4; // hold SCL low for 4 extra half-periods
+          push(sclM, 'z', stretchSlots);    // master has released SCL
+          push(sclS, 0, stretchSlots);      // slave is still pulling SCL low
+          push(sdaM, 'z', stretchSlots);
+          push(sdaS, 0, stretchSlots);      // slave still asserting ACK while it stretches
+          push(sdaM2, 'z', stretchSlots);
+          annot(ann, t, t + stretchSlots, 'slave stretches', { color: 'var(--purple)' });
+          t += stretchSlots;
+        }
+        // SCL high half — ACK bit is sampled here.
+        push(sclM, 'z', HALF); push(sclS, 'z', HALF);
+        push(sdaM, 'z', HALF);
+        push(sdaS, slaveAcks ? 0 : 'z', HALF);
+        push(sdaM2, 'z', HALF);
+        t += HALF;
+
+        // STOP condition: SCL goes low briefly, SDA pulled low, then SCL released
+        // high while SDA still low, finally SDA released high while SCL high.
+        push(sclM, 0, HALF); push(sclS, 'z', HALF);
+        push(sdaM, 0, HALF); push(sdaS, 'z', HALF);
+        push(sdaM2, 'z', HALF);
+        t += HALF;
+        annot(ann, t, t + HALF, 'STOP', { color: 'var(--red)' });
+        push(sclM, 'z', HALF); push(sclS, 'z', HALF);
+        push(sdaM, 0, HALF);   push(sdaS, 'z', HALF);
+        push(sdaM2, 'z', HALF);
+        t += HALF;
+        push(sclM, 'z', HALF); push(sclS, 'z', HALF);
+        push(sdaM, 'z', HALF); push(sdaS, 'z', HALF);
+        push(sdaM2, 'z', HALF);
+        t += HALF;
+        // Trailing idle
+        push(sclM, 'z', 4); push(sclS, 'z', 4);
+        push(sdaM, 'z', 4); push(sdaS, 'z', 4);
+        push(sdaM2, 'z', 4);
+
+        // Scenario-specific copy
+        if (scenario === 'clock-stretch') {
+          calloutText = '<b>Clock stretching.</b> The master finished its 8 address bits and tried to release SCL high to clock in the ACK. The slave wasn’t ready, so it pulled SCL low and held it. The master sees SCL still low and waits — that’s the entire mechanism. No handshake message, no flag bit: the slave just doesn’t let go of the clock until it’s ready. Toggle <b>driver view</b> to see master’s SCL drive go to <i>z</i> while the slave keeps it at <i>0</i>.';
+        } else if (scenario === 'nack') {
+          calloutText = '<b>NACK.</b> During the ACK slot, no slave pulls SDA low — the pull-up keeps it high. The master reads SDA=1 on the ACK clock pulse and concludes nothing acknowledged. Most commonly: the address didn’t match any slave on the bus.';
+        } else if (scenario === 'arbitration') {
+          calloutText = `<b>Multi-master arbitration.</b> A second master is also trying to start a transaction this instant — its address differs from yours at one bit. The bus is open-drain, so both masters write simultaneously and the bus shows the wired-AND. Whichever master first tries to send a 1 (release SDA) but reads back 0 (someone else is pulling) loses, immediately stops driving, and becomes a receiver. Same trick as CAN, exactly one bit-time of cost.`;
+        } else if (scenario === 'happy') {
+          calloutText = '<b>Address phase only.</b> START → 7 address bits → R/W=0 → ACK from slave → STOP. A real write would continue with 8 data bits + ACK before STOP — the structure is identical to the address byte.';
+        }
+
+        const slots = sclM.length;
+
+        // Compute bus arrays (open-drain wired-AND across both masters and slave).
+        const sclBus = busOf(sclM, sclS, true);
+        // Combine sdaM and sdaM2 (treating sdaM2 as a second master) by AND-ing first
+        const sdaCombined = new Array(slots);
+        for (let i = 0; i < slots; i++) {
+          const a = sdaM[i] === 0 ? 0 : 1;
+          const b = sdaM2[i] === 0 ? 0 : 1;
+          sdaCombined[i] = (a & b) === 0 ? 0 : 'z';
+        }
+        const sdaBus = busOf(sdaCombined, sdaS, true);
+
+        const lines = [
+          { name: 'SCL', master: sclM, slave: sclS, bus: sclBus, openDrain: true, color: 'var(--blue)' },
+          { name: 'SDA', master: sdaM, slave: sdaS, bus: sdaBus, openDrain: true, color: 'var(--red)' },
+        ];
+        if (scenario === 'arbitration') {
+          // Surface the second master as an extra "Other master SDA" line for visibility,
+          // even though it's the same physical wire as SDA.
+          lines.push({ name: 'SDA (master B)', master: sdaM2, slave: new Array(slots).fill('z'), bus: null, openDrain: true, color: 'var(--orange)', informational: true });
+        }
+
+        return {
+          protocol: 'i2c',
+          slots,
+          lines,
+          annotations: ann,
+          samples: [],
+          calloutText,
+        };
+      }
+
+      // ---------------------------------------------------------------
+      // SPI — single byte, modes 0–3.
+      // ---------------------------------------------------------------
+      // CPOL = idle clock polarity (0=low, 1=high)
+      // CPHA = clock-phase: 0 = sample on first (leading) edge, 1 = sample on second (trailing) edge.
+      function buildSpi(byteVal, mode, scenario) {
+        const HALF = 4;
+        const cpol = (mode >> 1) & 1;
+        const cpha = mode & 1;
+
+        const cs   = [];
+        const sck  = [];
+        const mosi = [];
+        const miso = [];
+        const ann  = [];
+        const samples = [];
+        let calloutText = null;
+
+        // Idle: CS high, SCK = cpol, MOSI/MISO undefined → drive 1 for clarity
+        const idleSlots = 6;
+        push(cs, 1, idleSlots);
+        push(sck, cpol, idleSlots);
+        push(mosi, 1, idleSlots);
+        push(miso, 1, idleSlots);
+
+        // Pull CS low
+        annot(ann, idleSlots, idleSlots + 2, 'CS↓', { color: 'var(--red)' });
+        push(cs, 0, 2);
+        push(sck, cpol, 2);
+        push(mosi, 1, 2);
+        push(miso, 1, 2);
+        let t = cs.length;
+
+        // For each of 8 bits MSB-first.
+        const dataBits = [];
+        for (let i = 7; i >= 0; i--) dataBits.push((byteVal >> i) & 1);
+        // MISO is the bit-reverse pattern, just so it visibly differs from MOSI.
+        const misoPattern = dataBits.slice().reverse();
+
+        // CPHA=0: data is shifted on the *trailing* edge (so MOSI is stable across
+        //          the leading edge where the slave samples). Bit 0 must be pre-loaded
+        //          before the first leading edge.
+        // CPHA=1: data is shifted on the *leading* edge (slave samples on trailing).
+        //          MOSI changes coincident with each leading SCK transition.
+        if (cpha === 0) {
+          // Pre-load bit 0 onto MOSI/MISO during the CS-low setup window.
+          for (let k = mosi.length - 2; k < mosi.length; k++) {
+            mosi[k] = dataBits[0];
+            miso[k] = misoPattern[0];
+          }
+        }
+
+        for (let bi = 0; bi < 8; bi++) {
+          const b  = dataBits[bi];
+          const mb = misoPattern[bi];
+
+          // SCK: half 1 at active level (!cpol), half 2 back to idle level (cpol).
+          // Leading edge happens at the start of half 1; trailing edge at the start of half 2.
+          push(sck, cpol ^ 1, HALF);
+          push(sck, cpol,     HALF);
+          push(cs, 0, HALF * 2);
+
+          if (cpha === 0) {
+            // Bit b is already on MOSI from the previous trailing edge (or the preload
+            // for bit 0). Half 1 keeps it. On the trailing edge (start of half 2) shift
+            // to bit b+1 — slave will sample that on the next leading edge.
+            const nextB  = (bi < 7) ? dataBits[bi + 1]    : b;
+            const nextMb = (bi < 7) ? misoPattern[bi + 1] : mb;
+            push(mosi, b, HALF);
+            push(mosi, nextB, HALF);
+            push(miso, mb, HALF);
+            push(miso, nextMb, HALF);
+            samples.push({ slot: t,        label: String(b),  color: 'var(--red)',  line: 'MOSI' });
+            samples.push({ slot: t,        label: String(mb), color: 'var(--blue)', line: 'MISO' });
+          } else {
+            // Bit b appears on MOSI/MISO at the leading edge (start of half 1) and
+            // is sampled at the trailing edge (start of half 2). Stable for both halves.
+            push(mosi, b,  HALF * 2);
+            push(miso, mb, HALF * 2);
+            samples.push({ slot: t + HALF, label: String(b),  color: 'var(--red)',  line: 'MOSI' });
+            samples.push({ slot: t + HALF, label: String(mb), color: 'var(--blue)', line: 'MISO' });
+          }
+          annot(ann, t, t + HALF * 2, 'b' + (7 - bi));
+          t += HALF * 2;
+        }
+
+        // CS high
+        annot(ann, t, t + 2, 'CS↑', { color: 'var(--red)' });
+        push(cs, 1, 2);
+        push(sck, cpol, 2);
+        push(mosi, 1, 2);
+        push(miso, 1, 2);
+        // Trailing idle
+        push(cs, 1, 6);
+        push(sck, cpol, 6);
+        push(mosi, 1, 6);
+        push(miso, 1, 6);
+
+        const slots = cs.length;
+
+        if (scenario === 'happy' || scenario === 'mode') {
+          calloutText = `<b>Mode ${mode} (CPOL=${cpol}, CPHA=${cpha}).</b> Clock idles ${cpol === 0 ? 'low' : 'high'}; data is sampled on the ${cpha === 0 ? 'leading' : 'trailing'} edge (red/blue ticks). Switch modes — same byte, same wire, but the slave must agree on which edge to read or it samples mid-transition and gets garbage. CPOL/CPHA mismatch is the single most common SPI debugging gotcha.`;
+        } else if (scenario === 'cs-deassert') {
+          // Truncate by raising CS halfway through.
+          for (let i = idleSlots + 2 + 8 * HALF * 2 / 2; i < slots; i++) {
+            cs[i] = 1;
+          }
+          calloutText = '<b>CS released mid-byte.</b> Most SPI slaves abandon any in-flight transfer when CS goes high. The receiver discards the half-byte. CS is the framing mechanism — there’s no other way for the slave to know "this bit is the start."';
+        }
+
+        const empty = new Array(slots).fill('z');
+        // For push-pull lines, "bus" is just whichever side is actively driving.
+        const csLine   = { name: 'CS',   master: cs,   slave: empty, bus: cs,   openDrain: false };
+        const sckLine  = { name: 'SCK',  master: sck,  slave: empty, bus: sck,  openDrain: false, color: 'var(--blue)' };
+        const mosiLine = { name: 'MOSI', master: mosi, slave: empty, bus: mosi, openDrain: false, color: 'var(--red)'  };
+        const misoLine = { name: 'MISO', master: empty, slave: miso, bus: miso, openDrain: false, color: 'var(--blue)' };
+
+        return {
+          protocol: 'spi',
+          slots,
+          lines: [csLine, sckLine, mosiLine, misoLine],
+          annotations: ann,
+          samples,
+          calloutText,
+        };
+      }
+
+      // ---------------------------------------------------------------
+      // SVG primitives
+      // ---------------------------------------------------------------
+      function mkRect(x, y, w, h, fill, stroke, r) {
+        const el = document.createElementNS(SVG_NS, 'rect');
+        el.setAttribute('x', x); el.setAttribute('y', y);
+        el.setAttribute('width', w); el.setAttribute('height', h);
+        if (r != null) el.setAttribute('rx', r);
+        el.setAttribute('fill', fill || 'none');
+        if (stroke) el.setAttribute('stroke', stroke);
+        return el;
+      }
+      function mkText(x, y, str, opts) {
+        const el = document.createElementNS(SVG_NS, 'text');
+        el.setAttribute('x', x); el.setAttribute('y', y);
+        el.setAttribute('text-anchor', opts.anchor || 'middle');
+        el.setAttribute('font-size', opts.size || 11);
+        el.setAttribute('font-weight', opts.weight || 400);
+        el.setAttribute('fill', opts.color || 'var(--black)');
+        if (opts.family) el.setAttribute('font-family', opts.family);
+        if (opts.letter) el.setAttribute('letter-spacing', opts.letter);
+        el.textContent = str;
+        return el;
+      }
+      function mkLine(x1, y1, x2, y2, stroke, w, dash) {
+        const el = document.createElementNS(SVG_NS, 'line');
+        el.setAttribute('x1', x1); el.setAttribute('y1', y1);
+        el.setAttribute('x2', x2); el.setAttribute('y2', y2);
+        el.setAttribute('stroke', stroke);
+        if (w != null) el.setAttribute('stroke-width', w);
+        if (dash) el.setAttribute('stroke-dasharray', dash);
+        return el;
+      }
+      function mkPath(d, fill, stroke, w, dash) {
+        const el = document.createElementNS(SVG_NS, 'path');
+        el.setAttribute('d', d);
+        el.setAttribute('fill', fill || 'none');
+        if (stroke) el.setAttribute('stroke', stroke);
+        if (w != null) el.setAttribute('stroke-width', w);
+        if (dash) el.setAttribute('stroke-dasharray', dash);
+        return el;
+      }
+
+      // Build a step-waveform path "d" string from a state array (slot → 0/1/'z').
+      // y0 = high level y, y1 = low level y. 'z' is rendered as high (with caller drawing
+      // it differently if desired).
+      function waveformPath(states, x0, slotPx, yHigh, yLow) {
+        let d = '';
+        let prev = null;
+        for (let i = 0; i < states.length; i++) {
+          const s = states[i];
+          const level = (s === 0) ? yLow : yHigh;
+          const x = x0 + i * slotPx;
+          if (i === 0) {
+            d += `M ${x} ${level}`;
+          } else if (level !== prev) {
+            // vertical edge then horizontal
+            d += ` L ${x} ${prev} L ${x} ${level}`;
+          }
+          prev = level;
+        }
+        const xEnd = x0 + states.length * slotPx;
+        d += ` L ${xEnd} ${prev}`;
+        return d;
+      }
+
+      // Same but emits each "released" segment ('z' value) as a dashed sub-path,
+      // returned as { solidD, dashedD }.
+      function waveformPathSplit(states, x0, slotPx, yHigh, yLow) {
+        // For each segment (run of equal state), emit either to solidD or dashedD.
+        let solid = '', dashed = '';
+        let i = 0;
+        while (i < states.length) {
+          let j = i + 1;
+          while (j < states.length && states[j] === states[i]) j++;
+          const s = states[i];
+          const level = (s === 0) ? yLow : yHigh;
+          const x1 = x0 + i * slotPx;
+          const x2 = x0 + j * slotPx;
+          const piece = ` M ${x1} ${level} L ${x2} ${level}`;
+          if (s === 'z') dashed += piece; else solid += piece;
+          i = j;
+        }
+        // Connect transitions vertically (always solid)
+        let connectors = '';
+        for (let k = 1; k < states.length; k++) {
+          const prevS = states[k - 1], cur = states[k];
+          if (prevS !== cur) {
+            const prevLevel = (prevS === 0) ? yLow : yHigh;
+            const curLevel = (cur === 0) ? yLow : yHigh;
+            const x = x0 + k * slotPx;
+            connectors += ` M ${x} ${prevLevel} L ${x} ${curLevel}`;
+          }
+        }
+        return { solidD: solid + connectors, dashedD: dashed };
+      }
+
+      // ---------------------------------------------------------------
+      // Renderer
+      // ---------------------------------------------------------------
+      function renderTrace(trace, opts) {
+        const svg = $('wave-svg');
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+        const driverView = !!opts.driverView;
+        const labelW = 90;
+        const padX = 10, padY = 14;
+        const slotPx = SLOT_PX * (opts.zoom || 1);
+
+        const HIGH_Y_OFFSET = 8;
+        const LOW_Y_OFFSET  = 36;
+        const ROW_GAP = 14;
+        const SUBROW_H = 26;
+        const SUBROW_GAP = 4;
+
+        // Compute layout
+        const rowHCompact = LOW_Y_OFFSET + 16; // 52
+        const rowHDriver  = SUBROW_H * 3 + SUBROW_GAP * 2 + 14; // 3 sub-rows
+        const annotationH = 22;
+
+        // Per-line height: only show driver view for open-drain when driverView is on.
+        const lineRows = trace.lines.map(l => {
+          const showDriver = driverView && l.openDrain && !l.informational;
+          return { line: l, showDriver, h: showDriver ? rowHDriver : rowHCompact };
+        });
+
+        const totalLineH = lineRows.reduce((acc, r) => acc + r.h + ROW_GAP, 0);
+        const W = labelW + padX * 2 + trace.slots * slotPx + 20;
+        const H = padY + annotationH + totalLineH + 18 + 14;
+
+        svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+        svg.setAttribute('width', W);
+
+        // ------ Phase annotations row across the top ------
+        const annotY0 = padY;
+        for (const a of trace.annotations) {
+          const x1 = labelW + padX + a.start * slotPx;
+          const x2 = labelW + padX + a.end * slotPx;
+          // Background pill
+          svg.appendChild(mkRect(x1 + 1, annotY0, Math.max(0, x2 - x1 - 2), 16, '#f4f5f7', '#e2e5ea', 3));
+          svg.appendChild(mkText((x1 + x2) / 2, annotY0 + 11, a.label, {
+            anchor: 'middle', size: 9, weight: 700, color: a.color || 'var(--grey-text)',
+            family: 'Roboto, Helvetica, sans-serif', letter: 0.6,
+          }));
+          // Vertical guide ticks at annotation boundaries
+          svg.appendChild(mkLine(x1, annotY0 + 18, x1, padY + annotationH + totalLineH, '#eef0f2', 1));
+        }
+        // End vertical guide
+        if (trace.annotations.length) {
+          const last = trace.annotations[trace.annotations.length - 1];
+          const xEnd = labelW + padX + last.end * slotPx;
+          svg.appendChild(mkLine(xEnd, annotY0 + 18, xEnd, padY + annotationH + totalLineH, '#eef0f2', 1));
+        }
+
+        // ------ Each line ------
+        let cursorY = padY + annotationH;
+        for (const lr of lineRows) {
+          const l = lr.line;
+          const yTop = cursorY + 4;
+          const x0 = labelW + padX;
+
+          // Row label
+          svg.appendChild(mkText(padX, yTop + 18, l.name, {
+            anchor: 'start', size: 12, weight: 900, color: l.color || 'var(--black)',
+            family: 'ui-monospace, Menlo, monospace', letter: 0.4,
+          }));
+          if (l.openDrain && !l.informational) {
+            svg.appendChild(mkText(padX, yTop + 32, 'open-drain', {
+              anchor: 'start', size: 9, weight: 700, color: 'var(--grey-text)',
+              family: 'Roboto, sans-serif', letter: 0.6,
+            }));
+          } else if (!l.openDrain) {
+            svg.appendChild(mkText(padX, yTop + 32, 'push-pull', {
+              anchor: 'start', size: 9, weight: 700, color: 'var(--grey-text)',
+              family: 'Roboto, sans-serif', letter: 0.6,
+            }));
+          }
+
+          if (lr.showDriver) {
+            // Three sub-rows: master drive, slave drive, bus result.
+            const subs = [
+              { label: 'master',  states: l.master, role: 'drive', color: '#1f6feb' },
+              { label: 'slave',   states: l.slave,  role: 'drive', color: '#2a8b2a' },
+              { label: 'bus',     states: l.bus,    role: 'bus',   color: 'var(--black)' },
+            ];
+            subs.forEach((sub, si) => {
+              const sy = yTop + si * (SUBROW_H + SUBROW_GAP);
+              const yHigh = sy + 4;
+              const yLow  = sy + SUBROW_H - 4;
+              // Sub-row label
+              svg.appendChild(mkText(x0 - 6, sy + SUBROW_H / 2 + 3, sub.label, {
+                anchor: 'end', size: 9, weight: 700, color: sub.color,
+                family: 'Roboto, sans-serif', letter: 0.5,
+              }));
+              // Background reference grid (dashed mid-line for HIGH/LOW)
+              svg.appendChild(mkLine(x0, yHigh, x0 + trace.slots * slotPx, yHigh, '#f0f1f3', 1));
+              svg.appendChild(mkLine(x0, yLow,  x0 + trace.slots * slotPx, yLow,  '#f0f1f3', 1));
+              if (sub.role === 'drive') {
+                // For drive rows, render with 'z' as dashed (released) and 0 as solid.
+                const { solidD, dashedD } = waveformPathSplit(sub.states, x0, slotPx, yHigh, yLow);
+                if (dashedD) svg.appendChild(mkPath(dashedD, 'none', sub.color, 1.5, '4 3'));
+                if (solidD)  svg.appendChild(mkPath(solidD,  'none', sub.color, 1.8));
+              } else {
+                // Bus row: simple step path
+                const d = waveformPath(sub.states, x0, slotPx, yHigh, yLow);
+                svg.appendChild(mkPath(d, 'none', sub.color, 1.8));
+                // Subtle fill below for "pulled low" emphasis: shade segments at low.
+                shadeLowSegments(svg, sub.states, x0, slotPx, yHigh, yLow);
+              }
+            });
+          } else {
+            // Compact: one step waveform of the bus (or master for push-pull).
+            const states = l.bus || l.master;
+            const sy = yTop;
+            const yHigh = sy + 6;
+            const yLow  = sy + LOW_Y_OFFSET - 4;
+            // Background grid
+            svg.appendChild(mkLine(x0, yHigh, x0 + trace.slots * slotPx, yHigh, '#f0f1f3', 1));
+            svg.appendChild(mkLine(x0, yLow,  x0 + trace.slots * slotPx, yLow,  '#f0f1f3', 1));
+            // High/low labels at left
+            svg.appendChild(mkText(x0 - 4, yHigh + 3, '1', {
+              anchor: 'end', size: 9, weight: 700, color: 'var(--grey-text)',
+              family: 'ui-monospace, Menlo, monospace',
+            }));
+            svg.appendChild(mkText(x0 - 4, yLow + 3, '0', {
+              anchor: 'end', size: 9, weight: 700, color: 'var(--grey-text)',
+              family: 'ui-monospace, Menlo, monospace',
+            }));
+            const d = waveformPath(states, x0, slotPx, yHigh, yLow);
+            svg.appendChild(mkPath(d, 'none', l.color || 'var(--black)', 1.8));
+            shadeLowSegments(svg, states, x0, slotPx, yHigh, yLow);
+          }
+
+          cursorY += lr.h + ROW_GAP;
+        }
+
+        // ------ Sample-point ticks ------
+        // Place ticks on the appropriate line's row, at the bus level position.
+        const sampleSets = [
+          { items: trace.samples, primary: true },
+          { items: trace.extraSamples || [], primary: false },
+        ];
+        for (const ss of sampleSets) {
+          for (const sm of ss.items) {
+            // Find the relevant line for the sample. Default to first line.
+            let lineIdx = 0;
+            if (sm.line) {
+              const fi = trace.lines.findIndex(l => l.name === sm.line);
+              if (fi >= 0) lineIdx = fi;
+            }
+            // Compute that line's vertical band
+            let y = padY + annotationH + 2;
+            for (let i = 0; i < lineIdx; i++) y += lineRows[i].h + ROW_GAP;
+            const lr = lineRows[lineIdx];
+            const yTickTop = y - 4;
+            const yTickBot = y + lr.h - 6;
+            const x = labelW + padX + sm.slot * slotPx;
+            svg.appendChild(mkLine(x, yTickTop, x, yTickBot, sm.color || 'var(--blue)', 1.2, ss.primary ? null : '3 3'));
+            // Triangle marker at top
+            const tri = document.createElementNS(SVG_NS, 'polygon');
+            tri.setAttribute('points', `${x - 4},${yTickTop} ${x + 4},${yTickTop} ${x},${yTickTop + 5}`);
+            tri.setAttribute('fill', sm.color || 'var(--blue)');
+            tri.setAttribute('opacity', ss.primary ? '1' : '0.55');
+            svg.appendChild(tri);
+            // Sample value label
+            svg.appendChild(mkText(x, yTickBot + 11, sm.label, {
+              anchor: 'middle', size: 10, weight: 900, color: sm.color || 'var(--blue)',
+              family: 'ui-monospace, Menlo, monospace',
+            }));
+          }
+        }
+      }
+
+      function shadeLowSegments(svg, states, x0, slotPx, yHigh, yLow) {
+        // Light shading under the trace where the line is at 0, to make
+        // "pulled low" visually pop.
+        let i = 0;
+        while (i < states.length) {
+          if (states[i] === 0) {
+            let j = i + 1;
+            while (j < states.length && states[j] === 0) j++;
+            const x1 = x0 + i * slotPx;
+            const x2 = x0 + j * slotPx;
+            const r = mkRect(x1, yLow - 0.5, x2 - x1, 1.5, 'rgba(188,18,42,0.10)', null);
+            svg.insertBefore(r, svg.firstChild);
+            i = j;
+          } else {
+            i++;
+          }
+        }
+      }
+
+      // ---------------------------------------------------------------
+      // UI state
+      // ---------------------------------------------------------------
+      const SCENARIOS = {
+        uart: [
+          { id: 'happy',          label: 'Happy path (8N1)' },
+          { id: 'baud-mismatch',  label: 'Baud mismatch (RX 15% fast)' },
+          { id: 'framing',        label: 'Framing error' },
+          { id: 'parity',         label: 'About parity (8E1)' },
+        ],
+        i2c: [
+          { id: 'happy',          label: 'Address + ACK + STOP' },
+          { id: 'clock-stretch',  label: 'Clock stretching' },
+          { id: 'nack',           label: 'NACK from slave' },
+          { id: 'arbitration',    label: 'Two masters arbitrate' },
+        ],
+        spi: [
+          { id: 'happy',          label: 'Single-byte transfer' },
+          { id: 'cs-deassert',    label: 'CS released mid-byte' },
+        ],
+      };
+
+      const state = {
+        proto: 'i2c',
+        scenario: 'happy',
+        byteVal: 0x4A,
+        addr: 0x68,
+        spiMode: 0,
+        driverView: false,
+      };
+
+      // ---------------------------------------------------------------
+      // Hex parsing — single byte
+      // ---------------------------------------------------------------
+      function parseSingleByte(text) {
+        const s = text.trim().toLowerCase();
+        if (s === '') throw new Error('empty');
+        let v;
+        if (s.startsWith('0x')) v = parseInt(s.slice(2), 16);
+        else if (s.startsWith('0b')) v = parseInt(s.slice(2), 2);
+        else if (s.startsWith('0d')) v = parseInt(s.slice(2), 10);
+        else if (/^[0-9a-f]+$/.test(s)) v = parseInt(s, 16); // hex by default
+        else throw new Error('invalid byte');
+        if (Number.isNaN(v) || v < 0 || v > 0xFF) throw new Error('out of range 0–255');
+        return v;
+      }
+      function parse7bitAddr(text) {
+        const v = parseSingleByte(text);
+        if (v > 0x7F) throw new Error('I²C 7-bit address must be 0–0x7F');
+        return v;
+      }
+
+      // ---------------------------------------------------------------
+      // Renderers
+      // ---------------------------------------------------------------
+      function legendFor(proto, driverView) {
+        const lines = [];
+        if (proto === 'uart') {
+          lines.push('<span><span class="swatch line" style="background:var(--black);height:3px;width:18px"></span>TX line, push-pull (idle = high, start = low)</span>');
+          lines.push('<span><span class="swatch" style="background:var(--blue);border-color:var(--blue)"></span>receiver sample point at bit centre</span>');
+          if (state.scenario === 'baud-mismatch') {
+            lines.push('<span><span class="swatch" style="background:var(--orange);border-color:var(--orange)"></span>wrong-baud receiver — drifts off bit centre</span>');
+          }
+        } else if (proto === 'i2c') {
+          lines.push('<span><span class="swatch line" style="background:var(--blue);height:3px;width:18px"></span>SCL — clock</span>');
+          lines.push('<span><span class="swatch line" style="background:var(--red);height:3px;width:18px"></span>SDA — data</span>');
+          if (driverView) {
+            lines.push('<span><span class="swatch line" style="background:#1f6feb;height:3px;width:18px"></span>master drive</span>');
+            lines.push('<span><span class="swatch line" style="background:#2a8b2a;height:3px;width:18px"></span>slave drive</span>');
+            lines.push('<span><span class="swatch" style="background:transparent;border:1.5px dashed var(--grey-text)"></span>released (high-impedance, pulled high by pull-up)</span>');
+          }
+          if (state.scenario === 'arbitration') {
+            lines.push('<span><span class="swatch line" style="background:var(--orange);height:3px;width:18px"></span>second master&rsquo;s SDA (same wire — shown separately for clarity)</span>');
+          }
+        } else if (proto === 'spi') {
+          lines.push('<span><span class="swatch line" style="background:var(--black);height:3px;width:18px"></span>CS — frame boundary</span>');
+          lines.push('<span><span class="swatch line" style="background:var(--blue);height:3px;width:18px"></span>SCK / MISO</span>');
+          lines.push('<span><span class="swatch line" style="background:var(--red);height:3px;width:18px"></span>MOSI</span>');
+          lines.push('<span><span class="swatch" style="background:var(--red);border-color:var(--red)"></span>sample edge (per CPHA)</span>');
+        }
+        return lines.join('');
+      }
+
+      function explainFor(proto) {
+        if (proto === 'uart') return `
+          <h3>Reading the diagram</h3>
+          <p><b>UART is asynchronous.</b> There is no clock wire — the line idles high, falls for one bit-period as a <b>start bit</b>, then carries 8 data bits LSB-first, then returns high for at least one bit-period as a <b>stop bit</b>. The receiver finds the falling start edge, waits half a bit-period to land at the centre, then samples once per bit-period. Both sides have to agree on the bit-period (the baud rate); there is no synchronisation in-band.</p>
+          <ol>
+            <li><b>Try a few bytes</b> like <code>0x55</code> (alternating <code>01010101</code>) — you can read the bits straight off the trace, LSB on the left.</li>
+            <li><b>Baud mismatch.</b> The simulator’s wrong-baud receiver is 15% fast: by bit 5 its sample point has drifted into the previous bit. The protocol has no recovery — both sides re-synchronise only at the next start edge. Real systems target &lt;2% mismatch end-to-end.</li>
+            <li><b>Framing error.</b> The transmitter must release the line for the stop bit. If receiver samples a low at the stop position, the byte is discarded. Often the symptom of a corrupted preceding bit boundary or an overrun.</li>
+            <li><b>What this skips.</b> No flow control (RTS/CTS), no parity, no hardware framing. Add 9-bit data, parity bits, or 1.5/2 stop bits and the start/stop framing is the same — only the inner length changes.</li>
+          </ol>`;
+        if (proto === 'i2c') return `
+          <h3>Reading the diagram</h3>
+          <p><b>I²C is synchronous and open-drain.</b> Two wires (SCL = clock, SDA = data) shared by every device on the bus. Any device can pull either line low; nobody actively drives high — pull-up resistors do that. So the bus is wired-AND: a line is high <i>only if</i> every device has released it. This single rule makes the protocol’s most surprising features (ACK, clock stretching, multi-master arbitration) fall out for free — toggle <b>driver view</b> to watch them.</p>
+          <ol>
+            <li><b>Happy path.</b> Master generates a START (SDA falls while SCL high), then clocks out 7 address bits + R/W. The addressed slave answers in the ACK slot by pulling SDA low while the master’s SDA is released. STOP is SDA rising while SCL high — exactly opposite of START.</li>
+            <li><b>Clock stretching.</b> The master is the clock source — except when the slave isn’t ready. Mid-transaction the slave can hold SCL low even after the master has released it. The master detects SCL still low and waits. No flag, no message: the bus protocol <i>is</i> the flow control. In driver view you can see master’s SCL drive at <i>z</i> while the slave’s SCL drive is <i>0</i>.</li>
+            <li><b>NACK.</b> If no slave answered the address, the ACK slot stays high (pull-up). Master sees ACK=1 → no recipient → STOP and try again or give up.</li>
+            <li><b>Two masters at once.</b> Both pull START low simultaneously. They both drive the address; the bus is wired-AND of both their drives. The first master to send a 1 (release) but read back 0 (the other master is pulling) loses arbitration and immediately goes silent, becoming a receiver. Same trick as CAN, exactly one bit-time of cost, no message lost.</li>
+            <li><b>Why open-drain matters.</b> All four behaviours above are <i>consequences</i> of "any device can pull low; nobody fights." Push-pull would short out when two devices disagree.</li>
+          </ol>`;
+        if (proto === 'spi') return `
+          <h3>Reading the diagram</h3>
+          <p><b>SPI is synchronous and push-pull.</b> Master drives SCK and MOSI; slave drives MISO. Chip-select (CS) frames a transfer — there is no addressing because each slave has its own CS line. With dedicated wires there is no contention, so SPI can run an order of magnitude faster than I²C (10s of MHz is routine).</p>
+          <ol>
+            <li><b>Try the modes.</b> CPOL sets the idle clock level; CPHA sets which edge the slave samples on. Same byte, same waveform shape, but the sample-edge moves. If master and slave disagree on CPHA, the slave samples while data is changing and reads garbage — the most common SPI bring-up bug.</li>
+            <li><b>CS released mid-byte.</b> The slave’s shift register typically resets when CS deasserts, so a partial transfer is discarded. CS is the only framing — no in-band start/stop bits exist.</li>
+            <li><b>What this skips.</b> Multi-slave bus topology (one CS per slave), daisy-chained MISO, quad/dual SPI, and the variation where MISO is tri-stated only when CS is high. The single-byte transfer pictured here is the building block of every SPI protocol on top.</li>
+          </ol>`;
+        return '';
+      }
+
+      function renderPresets() {
+        const root = $('presets');
+        root.innerHTML = '';
+        SCENARIOS[state.proto].forEach(sc => {
+          const b = document.createElement('button');
+          b.className = 'chip-btn' + (sc.id === state.scenario ? ' active' : '');
+          b.type = 'button';
+          b.textContent = sc.label;
+          b.addEventListener('click', () => {
+            state.scenario = sc.id;
+            renderPresets();
+            renderAll();
+          });
+          root.appendChild(b);
+        });
+      }
+
+      function renderAll() {
+        // Hide/show conditional fields per protocol
+        $('addr-field').style.display = (state.proto === 'i2c') ? '' : 'none';
+        $('mode-field').style.display = (state.proto === 'spi') ? '' : 'none';
+        $('driver-toggle-row').style.display = (state.proto === 'i2c') ? '' : 'none';
+
+        // Build trace
+        let trace;
+        try {
+          if (state.proto === 'uart') {
+            trace = buildUart(state.byteVal, state.scenario);
+          } else if (state.proto === 'i2c') {
+            trace = buildI2c(state.byteVal, state.addr, state.scenario);
+          } else {
+            trace = buildSpi(state.byteVal, state.spiMode, state.scenario);
+          }
+        } catch (e) {
+          $('err-msg').textContent = e.message;
+          return;
+        }
+        renderTrace(trace, { driverView: state.driverView });
+
+        // Legend
+        $('legend').innerHTML = legendFor(state.proto, state.driverView);
+
+        // Callout
+        if (trace.calloutText) {
+          $('annot-callout').classList.add('visible');
+          $('annot-callout').innerHTML = trace.calloutText;
+        } else {
+          $('annot-callout').classList.remove('visible');
+          $('annot-callout').innerHTML = '';
+        }
+
+        // Per-protocol explanation
+        $('explain-panel').innerHTML = explainFor(state.proto);
+      }
+
+      // ---------------------------------------------------------------
+      // Boot
+      // ---------------------------------------------------------------
+      function boot() {
+        // Tab buttons
+        document.querySelectorAll('#proto-tabs button').forEach(b => {
+          if (b.dataset.proto === state.proto) b.classList.add('active');
+          b.addEventListener('click', () => {
+            state.proto = b.dataset.proto;
+            // Keep scenario "happy" valid across protocols; if not present, fall back.
+            const valid = SCENARIOS[state.proto].some(sc => sc.id === state.scenario);
+            if (!valid) state.scenario = SCENARIOS[state.proto][0].id;
+            document.querySelectorAll('#proto-tabs button').forEach(x => x.classList.toggle('active', x === b));
+            renderPresets();
+            renderAll();
+          });
+        });
+
+        // SPI mode buttons
+        document.querySelectorAll('#mode-seg button').forEach(b => {
+          b.addEventListener('click', () => {
+            state.spiMode = +b.dataset.mode;
+            document.querySelectorAll('#mode-seg button').forEach(x => x.classList.toggle('active', x === b));
+            renderAll();
+          });
+        });
+
+        // Byte input
+        const byteEl = $('byte-input');
+        byteEl.addEventListener('input', () => {
+          try {
+            state.byteVal = parseSingleByte(byteEl.value);
+            byteEl.classList.remove('invalid');
+            $('err-msg').textContent = '';
+            renderAll();
+          } catch (e) {
+            byteEl.classList.add('invalid');
+            $('err-msg').textContent = e.message;
+          }
+        });
+
+        // I2C address input
+        const addrEl = $('addr-input');
+        addrEl.addEventListener('input', () => {
+          try {
+            state.addr = parse7bitAddr(addrEl.value);
+            addrEl.classList.remove('invalid');
+            $('err-msg').textContent = '';
+            renderAll();
+          } catch (e) {
+            addrEl.classList.add('invalid');
+            $('err-msg').textContent = e.message;
+          }
+        });
+
+        // Driver-view toggle
+        $('driver-toggle').addEventListener('change', (e) => {
+          state.driverView = e.target.checked;
+          renderAll();
+        });
+
+        renderPresets();
+        renderAll();
+      }
+      boot();
+    </script>
+  </body>
+</html>
