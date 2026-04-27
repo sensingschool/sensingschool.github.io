@@ -312,7 +312,7 @@
         </div>
         <div class="row" style="margin-top: 8px;">
           <label for="sensSlider">Sensitivity</label>
-          <input type="range" id="sensSlider" min="0.3" max="3" step="0.05" value="1" style="flex: 1 1 200px;" />
+          <input type="range" id="sensSlider" min="0.3" max="100" step="0.5" value="100" style="flex: 1 1 200px;" />
           <button id="recalBtn" class="secondary" style="margin-left: 4px;">Recalibrate</button>
         </div>
         <p class="note">Best with laptop speakers (not headphones), 10–40&nbsp;cm hand distance, and a quiet room. Hold still during the calibration bar at the start of each round.</p>
@@ -727,7 +727,7 @@
         const targetX = w * 0.5 + (Math.random() - 0.5) * w * 0.7;
         const apexY = h * (0.05 + Math.random() * 0.22);
         const startY = h + 30 * dpr;
-        const g_cv = 1300 * dpr;
+        const g_cv = 600 * dpr;
         const tA = Math.sqrt(Math.max(1, 2 * (startY - apexY) / g_cv));
         const vy = -g_cv * tA;
         const vx = (targetX - x) / (2 * tA);
@@ -894,12 +894,12 @@
         const sens = parseFloat(sensSlider.value);
 
         // meter visuals
-        const meterMax = 0.05;
+        const meterMax = 0.005;
         meterUp.style.width = Math.min(100, (cleanUp / meterMax) * 100 * sens) + '%';
         meterLo.style.width = Math.min(100, (cleanLo / meterMax) * 100 * sens) + '%';
 
         // blade physics: damped harmonic oscillator driven by signed Doppler
-        const driveK = 700 * sens;
+        const driveK = 3000 * sens;
         const springK = 14;
         const dampK = 4;
         omega += dirSig * driveK * dt;
@@ -923,7 +923,7 @@
         }
 
         // update fruits
-        const g_cv = 1300 * dpr;
+        const g_cv = 600 * dpr;
         for (const f of fruits) {
           f.x += f.vx * dt;
           f.y += f.vy * dt;
