@@ -607,10 +607,6 @@
             [['x','--x'],['y','--y'],['z','--z']], '°/s'),
           mag:   makeChart('magCanvas',   'magPlaceholder',   'magLegend',
             [['x','--x'],['y','--y'],['z','--z']], 'μT'),
-          pitch: makeChart('pitchCanvas', 'pitchPlaceholder', 'pitchLegend',
-            [['accel','--x'],['gyro','--y'],['comp','--z']], '°'),
-          roll:  makeChart('rollCanvas',  'rollPlaceholder',  'rollLegend',
-            [['accel','--x'],['gyro','--y'],['comp','--z']], '°'),
         };
 
         // Complementary filter state (radians internally, plotted in degrees)
@@ -620,15 +616,27 @@
           lastT: null,
         };
         let compAlpha = 0.98;
-        const compAlphaSlider = document.getElementById('compAlphaSlider');
-        const compAlphaValEl  = document.getElementById('compAlphaVal');
-        compAlphaSlider.addEventListener('input', () => {
-          compAlpha = parseFloat(compAlphaSlider.value);
-          compAlphaValEl.textContent = compAlpha.toFixed(3);
-        });
-        document.getElementById('tiltReset').addEventListener('click', () => {
-          tilt.lastT = null; // re-seed gyro & comp from next accel sample
-        });
+        // Wrap the tilt UI setup so any DOM hiccup can't abort pairing below.
+        try {
+          charts.pitch = makeChart('pitchCanvas', 'pitchPlaceholder', 'pitchLegend',
+            [['accel','--x'],['gyro','--y'],['comp','--z']], '°');
+          charts.roll  = makeChart('rollCanvas',  'rollPlaceholder',  'rollLegend',
+            [['accel','--x'],['gyro','--y'],['comp','--z']], '°');
+          const compAlphaSlider = document.getElementById('compAlphaSlider');
+          const compAlphaValEl  = document.getElementById('compAlphaVal');
+          if (compAlphaSlider && compAlphaValEl) {
+            compAlphaSlider.addEventListener('input', () => {
+              compAlpha = parseFloat(compAlphaSlider.value);
+              compAlphaValEl.textContent = compAlpha.toFixed(3);
+            });
+          }
+          const tiltResetBtn = document.getElementById('tiltReset');
+          if (tiltResetBtn) {
+            tiltResetBtn.addEventListener('click', () => { tilt.lastT = null; });
+          }
+        } catch (e) {
+          console.warn('Tilt UI setup failed (continuing):', e);
+        }
 
         let peer = null;
         let dataConn = null;
@@ -1192,7 +1200,7 @@
           //   pitch = atan2(ay, az)               — rotation around X (top edge up/down)
           //   roll  = atan2(ax, sqrt(ay² + az²))  — rotation around Y (right edge up/down)
           // Gyro rates: gyro.x = β̇ (pitch rate), gyro.y = γ̇ (roll rate), already in °/s.
-          if (s.accelG && s.gyro) {
+          if (s.accelG && s.gyro && charts.pitch && charts.roll) {
             const ax = s.accelG.x, ay = s.accelG.y, az = s.accelG.z;
             const RAD2DEG = 180 / Math.PI;
             const pitchA = Math.atan2(ay, az) * RAD2DEG;
@@ -1238,14 +1246,14 @@
         function applyWindow() {
           windowSec = sliderToWin(parseFloat(windowSlider.value));
           windowVal.textContent = fmtWin(windowSec);
-          for (const k of ['accel','gyro','mag','pitch','roll']) charts[k].setWindow(windowSec);
+          for (const k of ['accel','gyro','mag','pitch','roll']) if (charts[k]) charts[k].setWindow(windowSec);
         }
         windowSlider.addEventListener('input', applyWindow);
         applyWindow();
 
         const showSamplesEl = document.getElementById('showSamples');
         function applyShowSamples() {
-          for (const k of ['accel','gyro','mag','pitch','roll']) charts[k].setShowSamples(showSamplesEl.checked);
+          for (const k of ['accel','gyro','mag','pitch','roll']) if (charts[k]) charts[k].setShowSamples(showSamplesEl.checked);
         }
         showSamplesEl.addEventListener('change', applyShowSamples);
         applyShowSamples();
@@ -1254,7 +1262,7 @@
         function applyShowAll() {
           const on = showAllEl.checked;
           windowSlider.disabled = on;
-          for (const k of ['accel','gyro','mag','pitch','roll']) charts[k].setShowAll(on);
+          for (const k of ['accel','gyro','mag','pitch','roll']) if (charts[k]) charts[k].setShowAll(on);
         }
         showAllEl.addEventListener('change', applyShowAll);
         applyShowAll();
