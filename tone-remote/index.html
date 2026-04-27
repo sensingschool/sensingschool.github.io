@@ -403,7 +403,7 @@
             .ninja-intro { font-size: 13px; line-height: 1.5; color: var(--grey-text); margin: -8px 0 16px; max-width: 70ch; }
             .ninja-intro code { background: #f1f2f4; padding: 1px 5px; border-radius: 3px; font-size: 12px; }
           </style>
-          <p class="ninja-intro">A near-inaudible carrier (~15&nbsp;kHz) plays from the phone's speaker. When your hand moves toward or away from the phone, the reflected wave returns shifted in frequency (<code>Δf = 2·v·f/c</code> — about 87&nbsp;Hz per&nbsp;m/s at 15&nbsp;kHz). The phone's mic streams the signal back here over WebRTC, and the sideband energy swings the blade. Wave your hand 10–40&nbsp;cm above the phone to slice fruit; avoid bombs.</p>
+          <p class="ninja-intro">A near-inaudible carrier (~19&nbsp;kHz) plays from the phone's speaker. When your hand moves toward or away from the phone, the reflected wave returns shifted in frequency (<code>Δf = 2·v·f/c</code> — about 110&nbsp;Hz per&nbsp;m/s at 19&nbsp;kHz). The phone runs the FFT on the raw mic locally and sends just the sideband sums to your laptop over the data channel — so the analysis bypasses the WebRTC Opus codec. The laptop then runs the game and renders the blade.</p>
           <div class="canvas-wrap game-wrap">
             <canvas id="game"></canvas>
             <div class="placeholder" id="gamePlaceholder">Press start to play</div>
@@ -427,15 +427,15 @@
           <div class="row" style="margin-top: 16px;">
             <button id="gameBtn">Start game</button>
             <label for="carrierSlider" style="margin-left: 4px;">Carrier</label>
-            <input type="range" id="carrierSlider" min="6000" max="20000" step="100" value="15000" style="flex: 1 1 200px;" />
-            <span class="status" id="carrierVal">15.0 kHz</span>
+            <input type="range" id="carrierSlider" min="14000" max="22000" step="100" value="19000" style="flex: 1 1 200px;" />
+            <span class="status" id="carrierVal">19.0 kHz</span>
           </div>
           <div class="row" style="margin-top: 8px;">
             <label for="sensSlider">Sensitivity</label>
-            <input type="range" id="sensSlider" min="0.3" max="4" step="0.05" value="1.5" style="flex: 1 1 200px;" />
+            <input type="range" id="sensSlider" min="0.3" max="4" step="0.05" value="1" style="flex: 1 1 200px;" />
             <button id="recalBtn" class="secondary" style="margin-left: 4px;">Recalibrate</button>
           </div>
-          <p class="note">The carrier plays from the <strong>phone</strong>, not your laptop. WebRTC's Opus codec rolls off above ~16&nbsp;kHz, so 15&nbsp;kHz is a good balance — slide lower if the meter never moves, higher (toward inaudible) if you don't mind a thinner signal. Hold still during calibration.</p>
+          <p class="note">The carrier plays from the <strong>phone</strong>, not your laptop — wave your hand 10–40&nbsp;cm above it. The phone analyzes its own mic, so 19&nbsp;kHz works (no Opus rolloff to worry about); drop the slider if your phone's speaker can't reach that high. Hold still during calibration.</p>
         </section>
       </div>
 
@@ -602,6 +602,7 @@
         let dataBuf = null;
         let drawing = false;
         let keepalive = null;
+        const latestDoppler = { up: 0, lo: 0 };
 
         function makeNumericCode() {
           return ('0000' + Math.floor(Math.random() * 10000)).slice(-4);
@@ -653,7 +654,12 @@
               sendTone();
             });
             conn.on('data', (cmd) => {
-              if (cmd && cmd.type === 'tone') applyRemoteTone(cmd);
+              if (!cmd) return;
+              if (cmd.type === 'tone') applyRemoteTone(cmd);
+              else if (cmd.type === 'doppler') {
+                latestDoppler.up = +cmd.up || 0;
+                latestDoppler.lo = +cmd.lo || 0;
+              }
             });
             conn.on('close', () => {
               dataConn = null;
@@ -923,7 +929,6 @@
         let baselineUp = 0, baselineLo = 0, calibFrames = 0;
         const CALIB_FRAMES = 60;
         let smoothedUp = 0, smoothedLo = 0;
-        let dopplerBuf = null;
 
         bestEl.textContent = best;
 
@@ -1103,33 +1108,9 @@
         }
 
         function readDoppler() {
-          if (!analyser || !dataBuf) return { up: 0, lo: 0 };
-          if (!dopplerBuf || dopplerBuf.length !== dataBuf.length) {
-            dopplerBuf = new Float32Array(dataBuf.length);
-          }
-          analyser.getFloatFrequencyData(dopplerBuf);
-          const f = parseInt(carrierSlider.value, 10);
-          const sr = audioCtx.sampleRate;
-          const fftSize = analyser.fftSize;
-          const binHz = sr / fftSize;
-          const carrierBin = Math.round(f / binHz);
-          const guardBins = Math.max(2, Math.ceil(50 / binHz));
-          const maxBins = Math.ceil(700 / binHz);
-          let up = 0, lo = 0;
-          const len = dopplerBuf.length;
-          for (let i = guardBins; i <= maxBins; i++) {
-            const bU = carrierBin + i;
-            const bL = carrierBin - i;
-            if (bU < len) {
-              const db = dopplerBuf[bU];
-              if (isFinite(db)) up += Math.pow(10, db / 20);
-            }
-            if (bL >= 0) {
-              const db = dopplerBuf[bL];
-              if (isFinite(db)) lo += Math.pow(10, db / 20);
-            }
-          }
-          return { up, lo };
+          // Phone runs the FFT on the raw mic and streams the sideband sums via
+          // the data channel; we just relay the cached values into the game.
+          return { up: latestDoppler.up, lo: latestDoppler.lo };
         }
 
         function pointSegDist(px, py, ax, ay, bx, by) {
@@ -1380,6 +1361,9 @@
         let conn = null;
         let carrierOsc = null;
         let carrierGain = null;
+        let micAnalyser = null;
+        let dopplerBuf = null;
+        let dopplerRaf = null;
         const carrierState = { play: false, freq: 19000 };
 
         const state = { play: false, freq: 440, gain: 0.08 };
@@ -1427,16 +1411,51 @@
               carrierGain.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.3);
             }
             carrierOsc.frequency.setTargetAtTime(carrierState.freq, audioCtx.currentTime, 0.01);
-          } else if (carrierOsc) {
-            const o = carrierOsc, g = carrierGain;
-            try {
-              g.gain.cancelScheduledValues(audioCtx.currentTime);
-              g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
-              o.stop(audioCtx.currentTime + 0.15);
-            } catch (e) {}
-            carrierOsc = null;
-            carrierGain = null;
+            startDopplerAnalysis();
+          } else {
+            stopDopplerAnalysis();
+            if (carrierOsc) {
+              const o = carrierOsc, g = carrierGain;
+              try {
+                g.gain.cancelScheduledValues(audioCtx.currentTime);
+                g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+                o.stop(audioCtx.currentTime + 0.15);
+              } catch (e) {}
+              carrierOsc = null;
+              carrierGain = null;
+            }
           }
+        }
+
+        function startDopplerAnalysis() {
+          if (dopplerRaf || !micAnalyser || !conn || !conn.open) return;
+          dopplerRaf = requestAnimationFrame(dopplerLoop);
+        }
+
+        function stopDopplerAnalysis() {
+          if (dopplerRaf) cancelAnimationFrame(dopplerRaf);
+          dopplerRaf = null;
+        }
+
+        function dopplerLoop() {
+          dopplerRaf = null;
+          if (!carrierState.play || !micAnalyser || !conn || !conn.open) return;
+          micAnalyser.getFloatFrequencyData(dopplerBuf);
+          const sr = audioCtx.sampleRate;
+          const binHz = sr / micAnalyser.fftSize;
+          const carrierBin = Math.round(carrierState.freq / binHz);
+          const guardBins = Math.max(2, Math.ceil(50 / binHz));
+          const maxBins = Math.ceil(700 / binHz);
+          let up = 0, lo = 0;
+          const len = dopplerBuf.length;
+          for (let i = guardBins; i <= maxBins; i++) {
+            const bU = carrierBin + i;
+            const bL = carrierBin - i;
+            if (bU < len) { const db = dopplerBuf[bU]; if (isFinite(db)) up += Math.pow(10, db / 20); }
+            if (bL >= 0) { const db = dopplerBuf[bL]; if (isFinite(db)) lo += Math.pow(10, db / 20); }
+          }
+          try { conn.send({ type: 'doppler', up, lo }); } catch (e) {}
+          dopplerRaf = requestAnimationFrame(dopplerLoop);
         }
 
         function broadcast() {
@@ -1485,6 +1504,21 @@
 
             audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+            // Local analyser on the raw mic — used by Doppler Ninja so the
+            // analysis isn't subject to the WebRTC Opus high-frequency rolloff.
+            const micSource = audioCtx.createMediaStreamSource(stream);
+            micAnalyser = audioCtx.createAnalyser();
+            micAnalyser.fftSize = 8192;
+            micAnalyser.smoothingTimeConstant = 0;
+            micAnalyser.minDecibels = -150;
+            micAnalyser.maxDecibels = -10;
+            micSource.connect(micAnalyser);
+            const silentSink = audioCtx.createGain();
+            silentSink.gain.value = 0;
+            micAnalyser.connect(silentSink);
+            silentSink.connect(audioCtx.destination);
+            dopplerBuf = new Float32Array(micAnalyser.frequencyBinCount);
 
             phoneControls.hidden = false;
             updateUI();
